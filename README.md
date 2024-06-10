@@ -29,9 +29,7 @@ In conclusion, the policy brief underscores the critical need for robust policy 
 
 ## Reference Lists
 
-American Psychological Association. (n.d.). Misinformation and disinformation. [https://www.apa.org/topics/journalism-facts/misinformation-disinformation#:~
-=Misinformation%20is%20false%20or%20inaccurate,mislead%E2%80%94intentionally%20misstating%20the%20facts](https://www.apa.org/topics/journalism-facts/misinformation-disinformation#:~
-=Misinformation%20is%20false%20or%20inaccurate,mislead%E2%80%94intentionally%20misstating%20the%20facts)
+American Psychological Association. (n.d.). Misinformation and disinformation. [https://www.apa.org/topics/journalism-facts/misinformation-disinformation](https://www.apa.org/topics/journalism-facts/misinformation-disinformation)
 
 Boston University. (n.d.). Guide to Reddit AMAs. PR Social. [https://www.bu.edu/prsocial/best-practices/social-media/guide-to-reddit-amas/](https://www.bu.edu/prsocial/best-practices/social-media/guide-to-reddit-amas/)
 
