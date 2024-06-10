@@ -1,0 +1,3061 @@
+---
+title: "Data Analysis: The Spread of Misinformation and Disinformation on Reddit - The Case Study of Vegan and Meat Consumption"
+subtitle: "Nanmanat Disayakamonpan, Nastaran Mesgari"
+format:
+  html:                     
+    standalone: true        
+    embed-resources: true   
+    code-fold: false        
+    number-sections: true  
+    toc: true 
+---
+
+# Project Overview
+
+## Background and Context/Problem Statement
+
+It has become evident that misinformation and disinformation regarding veganism and meat consumption are widespread across various social media platforms, demanding urgent attention. Our project, **“The Spread of Misinformation and Disinformation on Reddit: A Case Study of Vegan and Meat Consumption”,** focuses on identifying misleading posts, especially concerning health and nutrition. Through systematic analysis, we aim to ***uncover how misleading posts on Reddit influence people’s perceptions surrounding veganism and meat consumption discourse.*** Therefore, our primary goal is to provide actionable insights and evidence-based recommendations for a policy framework aimed at promoting accurate information and improving public understanding of dietary choices in the online community.
+
+```{python}
+#| label: importing the libraries
+#| echo: false
+#| include: false
+
+#Importing the needed libraries only in this code chunk
+
+# Web Scraping from Reddit
+import praw
+
+# Data Analysis: 
+import pandas as pd
+import csv
+
+# Numerical Computing/Mathematical Operations: 
+import numpy as np 
+
+# Data Visualization: 
+import matplotlib.pyplot as plt 
+import seaborn as sns 
+from tabulate import tabulate
+
+# Natural Language Processing (NLP):
+import re # for regular expressions.
+import textblob # for simple NLP tasks like sentiment analysis.
+import nltk # for NLP tasks such as tokenization and part-of-speech tagging
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from nltk.stem import WordNetLemmatizer
+from nltk import ngrams
+import spacy # for efficient NLP processing and pre-trained models
+import gensim # for topic modeling and document similarity
+from gensim.corpora import Dictionary # for topic modeling
+from gensim.models.ldamodel import LdaModel # for topic modeling 
+from gensim.corpora.dictionary import Dictionary
+from gensim.models import LdaModel, Phrases
+
+# Machine Learning: 
+import sklearn # for machine learning algorithms and evaluation metrics
+
+# Other Utilities:
+import warnings #  for handling warning messages.
+warnings.filterwarnings('ignore')
+from bs4 import BeautifulSoup # for web scraping
+from wordcloud import WordCloud # for word cloud generation
+from transformers import pipeline # for Hugging Face's transformers.
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer # for converting text data into numerical features
+from collections import Counter # for calculating the frequency of elements in a collection.
+from sklearn.cluster import KMeans # for clustering
+from sklearn.metrics import silhouette_score # for evaluation metrics
+from spacy.lang.en import English # for tokenizing English text.
+from spacy.lang.en.stop_words import STOP_WORDS # A set of common stop words are often filtered out during text processing tasks.
+from textblob import TextBlob
+from tabulate import tabulate
+```
+
+## Web Scraping for Extracting Data 
+
+The qualitative data source for this study contain comments from the posts of several subreddits, extracted by ***web scraping with Reddit's API***. We only selected posts potentially categorized as misleading to represent diverse viewpoints on dietary choices on Reddit
+
+![Figure 1.2A: The post from r/AntiVegan](Photos/antivegan_post.jpg)
+
+![Figure 1.2B: The post from r/changemyview](Photos/cmv_post.jpg)
+
+![Figure 1.2C: The post from r/insanepeoplefacebook](Photos/isppfb_post.jpg)
+
+![Figure 1.2D: The post (1) from r/terriblefacebookmemes](Photos/tfm_post.jpg)
+
+![Figure 1.2E: The post (2) from r/terriblefacebookmemes](Photos/tfm2_post.jpg)
+
+![Figure 1.2F: The post from r/TrueUnpopularOpinion](Photos/tupo_post.jpg)
+
+**Table 1.2:** *Define each post whether they are misinformation or disinformation, and why?*
+
+| Subreddit              | Post Title                                 | Categorized as | Implication                                                                                                                                                                                                                  |
+|------------------------|--------------------------------------------|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| r/AntiVegan            | *Veganism is an eating disorder*             | ***Disinformation*** | It uses charged language without scientific basis to promote a controversial viewpoint and discredit veganism, aiming to manipulate public perception rather than inform.                     |
+| r/changemyview         | *Veganism is both mentally and physically unhealthy*  | ***Misinformation*** | It seems more likely to be misleading due to exaggerated claims from a personal misunderstanding of veganism rather than deliberately spreading harmful falsehoods.                 |
+| r/insanepeoplefacebook | *Veganism > malnutrition*                    | ***Misinformation*** | It seems based on genuine belief rather than intent to deceive, reflecting a misunderstanding about how diet affects infant development. The claim lacks scientific support, indicating a misinterpretation rather than deliberate falsehood. |
+| r/terriblefacebookmemes | *Vegan = bad*           | ***Disinformation*** | It uses sarcasm to exaggerate and mock plant-based diets by listing fictitious and negative "ingredients" such as "lack of happiness" It intentionally contrasts complex plant-based ingredients with the simplicity of "deer" to discredit vegan options, misleadingly suggesting negative outcomes associated with plant-based diets. This manipulation aims to influence opinions and undermine plant-based diets, which indicates a deliberate attempt to skew perception. |
+| r/terriblefacebookmemes | *Vegan bad*             | ***Disinformation*** | It employs sarcasm to falsely show the negative health effects of a vegan diet, presenting a dramatically altered photo to mislead viewers. It intentionally manipulates facts to provoke and deceive, aiming to influence opinions and discredit veganism by suggesting severe health declines. This is a deliberate effort to shape public perception negatively towards vegan diets. |
+| r/TrueUnpopularOpinion | *Veganism is truly unhealthy*                | ***Misinformation*** | It seems to be an individual's misconceptions or incorrect information about nutritional science rather than intentional deception.                                                        |
+
+```{python}
+#| label: Loading the datasets
+#| echo: false
+#| message: false
+#| include: false
+
+antivegan = pd.read_csv('Datasets/antivegan.csv', sep=",", header=0, index_col=False)
+
+cmv = pd.read_csv('Datasets/cmv.csv', sep=",", header=0, index_col=False)
+
+isppfb = pd.read_csv('Datasets/isppfb.csv', sep=",", header=0, index_col=False)
+
+tfm = pd.read_csv('Datasets/tfm.csv', sep=",", header=0, index_col=False)
+
+tfm2 = pd.read_csv('Datasets/tfm2.csv', sep=",", header=0, index_col=False)
+
+tupo = pd.read_csv('Datasets/tupo.csv', sep=",", header=0, index_col=False)
+```
+
+
+
+## Understanding the Data
+
+There are **six** datasets containing **comments from various groups on the Reddit platform.** Each dataset focuses on capturing ***diverse perspectives regarding misinformation and disinformation surrounding veganism and meat consumption within the Reddit community.***
+
+The datasets consist of **four features, including two categorical variables: "comment" and "parent_id"**. The **"comment"** column contains  ***both positive and negative feedback related to dietary choices***, reflecting  **the impact of misinformation and disinformation on people's sentiments, thoughts, and beliefs regarding veganism and meat consumption.** These comments provide valuable insights into the spread and perception of misinformation within the Reddit community.
+
+Additionally, the datasets include **two numerical variables: "score" and "number_reply"**, which are provided by users on Reddit. These variables offer quantitative measures of engagement and interaction with the comments, allowing for a comprehensive analysis of community response to misinformation and disinformation. Overall, the datasets serve as useful sources of data for exploring the dynamics of misinformation and disinformation surrounding dietary choices on the Reddit platform.
+
+Aligned with our target audience's interests, our analysis will focus exclusively on posts related to veganism and meat consumption on Reddit. Specifically, we will narrow our scope to discussions surrounding health and nutrition issues related to these dietary choices. This approach ensures that our findings can reflect the prevalent concerns and need urgent attention in developing a policy brief to mitigate risks associated with spreading misinformation and disinformation surrounding veganism and meat consumption within the Reddit community.
+
+Below, we outline the feature names of both datasets along with brief descriptions to provide context for our analysis:
+
+**Table 1.3A:** *The feature names of both datasets along with their descriptions*
+
+|    **Variable Name**         | **Description**                                           | **Values**                                                                                  |
+|------------------------------|--------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| comment                      | Comments from users within the subgroups on Reddit        | Categorical: Textual content of the comments provided by Reddit users.                      |
+| score                        | Voting from users for the comments                        | Numerical: Indicates the net score assigned by Reddit users to each comment.                |
+| number_reply                 | Number of replies received by the comments                | Numerical: Indicates the count of replies received by each comment.                         |
+| parent_id                    | Identifier of the parent post or comment                  | Cetegorical: Identifies the parent post or comment within the Reddit platform, such as "AntiVegan" or "Health".                          |
+
+### "antivegan" Dataframe
+
+The "antivegan" dataset originates from a subreddit named **"r/AntiVegan"**, chosen specifically due to a post titled ***"Veganism is an eating disorder,"*** which potentially contains **disinformation** content by using charged language without scientific basis to promote a controversial viewpoint and discredit veganism, aiming to manipulate public perception rather than inform.
+
+**Table 1.3.1:** *"antivegan" Dataframe*
+
+```{python}
+#| label: antivegan dataset
+#| echo: false
+#| message: true
+
+antivegan.head(5)
+```
+
+### "cmv" Dataframe
+
+The "cmv" dataframe originates from a subreddit **"r/changemyview"**. We specifically selected this subreddit group due to a post titled ***"veganism is both mentally and physically unhealthy"***, which potentially presents **misinformation** due to exaggerated claims from a personal misunderstanding of veganism rather than deliberately spreading harmful falsehoods.
+
+**Table 1.3.2:** *"cmv" Dataframe*
+
+```{python}
+#| label: cmv dataset
+#| echo: false
+#| message: true
+
+cmv.head(5)
+```
+
+### "isppfb" Dataframe
+
+The "isppfb" dataframe originates from a subreddit **"r/insanepeoplefacebook"**. We specifically selected this subreddit group due to a post titled ***"Veganism > malnutrition"***, which potentially presents **misinformation**. It seems based on genuine belief rather than intent to deceive, reflecting a misunderstanding about how diet affects infant development. The claim lacks scientific support, indicating a misinterpretation rather than deliberate falsehood.
+
+**Table 1.3.3:** *"isppfb" Dataframe*
+
+```{python}
+#| label: isppfb dataset
+#| echo: false
+#| message: true
+
+isppfb.head(5)
+```
+
+### "tfm" and "tfm2" Dataframes
+
+The "tfm" and "tfm2" dataframes are sourced from the subreddit **"r/terriblefacebookmemes"**, a community dedicated to sharing the cringeworthy memes often seen on Facebook. We focused on this subreddit group due to multiple posts. 
+
+First, we selected the post titled ***"Vegan = bad"***, which potentially presents **disinformation**. It uses sarcasm to exaggerate and mock plant-based diets by listing fictitious and negative “ingredients” such as “lack of happiness” It intentionally contrasts complex plant-based ingredients with the simplicity of “deer” to discredit vegan options, misleadingly suggesting negative outcomes associated with plant-based diets. This manipulation aims to influence opinions and undermine plant-based diets, which indicates a deliberate attempt to skew perception.
+
+**Table 1.3.4A:** *"tfm" Dataframe*
+
+```{python}
+#| label: tfm dataset
+#| echo: false
+#| message: true
+
+tfm.head(5)
+```
+
+Secondly, we chose the post title ***"Vegan bad"***, which potentially presents **disinformation**. It employs sarcasm to falsely show the negative health effects of a vegan diet, presenting a dramatically altered photo to mislead viewers. It intentionally manipulates facts to provoke and deceive, aiming to influence opinions and discredit veganism by suggesting severe health declines. This is a deliberate effort to shape public perception negatively towards vegan diets.
+
+**Table 1.3.4B:** *"tfm2" Dataframe*
+
+```{python}
+#| label: tfm2 dataset
+#| echo: false
+#| message: true
+
+tfm2.head(5)
+```
+
+### "tupo" Dataframe
+
+The "tupo" dataframe comes from a subreddit **"r/TrueUnpopularOpinion"**. This subreddit group claims that this community aims to be a space for civil discussion of unpopular opinions, free of some of the censorship found on many other subreddits. However, we still found a post entitled ***"Veganism is truly unhealthy."***, which potentially presents **misinformation**. It seems to be an individual’s misconceptions or incorrect information about nutritional science rather than intentional deception.
+
+**Table 1.3.5:** *"tupo" Dataframe*
+
+```{python}
+#| label: tupo dataset
+#| echo: false
+#| message: true
+
+tupo.head(5)
+```
+
+**Table 1.3B:** *Dataset Summary*
+
+| Data Frame   | Subreddit                  | Post Title                                   |
+|----------------|----------------------------|----------------------------------------------|
+| antivegan  | r/AntiVegan               | Veganism is an eating disorder               |
+| cmv        | r/changemyview            | Veganism is both mentally and physically unhealthy |
+| isppfb     | r/insanepeoplefacebook    | Veganism > malnutrition                     |
+| tfm        | r/terriblefacebookmemes   | Vegan bad                       |
+| tfm2       | r/terriblefacebookmemes   | Vegan = bad                      |
+| tupo       | r/TrueUnpopularOpinion    | Veganism is truly unhealthy                  |
+
+
+# Descriptive Statistics and Exploratory Data Analysis (EDA)
+
+## Number of Subscribers for Each Subreddit
+
+**Figure 2.1:** *Subreddit subscriber counts*
+
+```{python}
+#| label: Number of Subscribers for Each Subreddit
+#| echo: false
+#| include: false
+#| eval: false
+
+# Load subreddit subscriber data from CSV file
+subreddit_subscribers = pd.read_csv("Datasets/subreddit_subscribers.csv")
+
+# Extract subreddit names and subscriber counts
+subreddit_names = subreddit_subscribers["Subreddit"]
+subscriber_counts = subreddit_subscribers["Subscribers"]
+
+# Plotting the horizontal bar chart with viridis colormap
+plt.figure(figsize=(10, 5))
+bars = plt.barh(subreddit_names, subscriber_counts, color=plt.cm.viridis(np.linspace(0, 1, len(subreddit_names))))
+plt.ylabel('Subreddit')
+plt.xlabel('Number of Subscribers')
+plt.title('Number of Subscribers for Each Subreddit')
+
+# Add count labels on the right side of each bar
+for bar, count, subreddit_name in zip(bars, subscriber_counts, subreddit_names):
+    if subreddit_name in ["changemyview", "insanepeoplefacebook", "terriblefacebookmemes"]:
+        count_label = f'{count / 1_000_000:.1f}m'
+    elif subreddit_name in ["AntiVegan", "TrueUnpopularOpinion"]:
+        count_label = f'{count / 1_000:.1f}k'
+    else:
+        count_label = str(count)
+    plt.text(bar.get_width(), bar.get_y() + bar.get_height() / 2, count_label, ha='left', va='center')
+
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 2A: Number of Subscribers for Each Subreddit](Photos/subscriber_count.png)
+
+The bar chart visualizes the subscriber count for different subreddits. "changemyview" has the largest community with 3.6 million subscribers, followed by "terriblefacebookmemes" with 2.2 million, and "insanepeoplefacebook" with 2.1 million. "TrueUnpopularOpinion" has a smaller base with 144,000 subscribers, and "AntiVegan" is the smallest, with 24,000 subscribers. The data suggests "changemyview" is the most popular subreddit among those listed, potentially indicating it as a significant platform for discussions that could include veganism and meat consumption topics.
+
+## The Highest and Lowest Score of Each Post
+
+**Figure 2.2:** *The highest and lowest score of each post*
+
+```{python}
+#| label: The Highest and Lowest Score of Each Post
+#| echo: false
+#| include: false
+#| eval: false
+
+# List of dataset names
+datasets = ['antivegan', 'cmv', 'isppfb', 'tfm', 'tfm2', 'tupo']
+
+# Initialize lists to store highest and lowest scores
+highest_scores = []
+lowest_scores = []
+
+# Iterate over each dataset
+for dataset_name in datasets:
+    # Get the dataset
+    dataset = globals()[dataset_name]
+    
+    # Find the highest and lowest scores
+    highest_score = dataset['score'].max()
+    lowest_score = dataset['score'].min()
+    
+    # Append scores to respective lists
+    highest_scores.append(highest_score)
+    lowest_scores.append(lowest_score)
+
+# Plotting the bar chart
+plt.figure(figsize=(8, 5))
+bars1 = plt.bar(datasets, highest_scores, color='skyblue', label='Highest Score')
+bars2 = plt.bar(datasets, lowest_scores, color='orange', label='Lowest Score')
+
+# Adding labels and title
+plt.xlabel('Dataset')
+plt.ylabel('Score')
+plt.title('Highest and Lowest Scores of Comments for Each Dataset')
+plt.legend()
+
+# Rotating x-axis labels for better readability
+plt.xticks(rotation=45, ha='right')
+
+# Adding numbers above the bars
+for bar, score in zip(bars1, highest_scores):
+    plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), score,
+             ha='center', va='bottom')
+
+for bar, score in zip(bars2, lowest_scores):
+    plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), score,
+             ha='center', va='top')
+
+# Display the plot
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 2B: The Highest and Lowest Scores of Each Dataset's Comments](Photos/high_low_score.png)
+
+The bar chart compares the highest and lowest scores across various datasets, likely representing the level of interaction for comments in different contexts related to veganism and meat consumption. The dataset "tfm2" shows the highest peak in positive interaction with a score of 602, while the same dataset has the most significant negative reaction with a score of -70, indicating highly polarized views. In contrast, datasets "antivegan" and "cmv" have narrower ranges, suggesting a more moderate level of interaction or engagement. This visualization could reflect the varying degrees of controversy and engagement in online discussions related to dietary choices.
+
+```{python}
+#| label: The Top 3 Comments Based on the Highest and Lowest Score
+#| echo: false
+#| include: false
+
+# List of dataset names
+datasets = {'isppfb': isppfb, 'tfm2': tfm2, 'tupo': tupo}
+
+# Initialize dictionaries to store comments with highest and lowest scores
+highest_comments = {}
+lowest_comments = {}
+
+# Iterate over each dataset
+for dataset_name, dataset in datasets.items():
+    # Find the index of the row with the highest score
+    highest_score_index = dataset['score'].idxmax()
+    # Find the index of the row with the lowest score
+    lowest_score_index = dataset['score'].idxmin()
+    
+    # Get the comment with the highest score
+    highest_comment = dataset.loc[highest_score_index, 'comment']
+    # Get the comment with the lowest score
+    lowest_comment = dataset.loc[lowest_score_index, 'comment']
+    
+    # Store comments in the dictionaries
+    highest_comments[dataset_name] = highest_comment
+    lowest_comments[dataset_name] = lowest_comment
+
+# Print comments with highest and lowest scores, including the scores
+for dataset_name, comment in highest_comments.items():
+    highest_score = datasets[dataset_name]['score'].max()
+    print(f"Highest Score in {dataset_name}: Score: {highest_score}, Comment: {comment}\n")
+
+for dataset_name, comment in lowest_comments.items():
+    lowest_score = datasets[dataset_name]['score'].min()
+    print(f"Lowest Score in {dataset_name}: Score: {lowest_score}, Comment: {comment}\n")
+```
+
+Additionally, the table highlights the top 3 comments based on highest and lowest scores, showcasing varied sentiments across datasets, from positive reflections to critical viewpoints.
+
+**Table 2.2:** *The Top 3 Comments Based on the Highest and Lowest Score*
+
+| Dataset | Highest Score | Highest Score Comment                                                                                                                      | Lowest Score | Lowest Score Comment                                      |
+|---------|---------------|--------------------------------------------------------------------------------------------------------------------------------------------|--------------|-----------------------------------------------------------|
+| isppfb  | 338    | This meme will definitely be used as evidence in a Child Protective Services hearing.                                                    |  -14   | You don't /have/ to exploit cows either.                |
+| tfm2    |  602    | Hope I have half the energy and Lust for Life that Iggy Pop has at 76                                                                     | -70   | [deleted]                                                 |
+| tupo    |  109    | Taken to an extreme, I would agree. Personally, I have known a few long-term Vegans, but it takes a considerable amount of effort...      | -10   | Hopefully you believe this and will practice it daily. |
+
+## The Comments with the Most Number of Replies
+
+```{python}
+#| label: The Comments with the Most Number of Replies of each dataset
+#| echo: false
+#| include: false
+#| eval: false
+
+# List of dataset names and their corresponding DataFrames
+datasets = {
+    'antivegan': antivegan,
+    'cmv': cmv,
+    'isppfb': isppfb,
+    'tfm': tfm,
+    'tfm2': tfm2,
+    'tupo': tupo
+}
+
+# Initialize a list to store tabular data
+table_data = []
+
+# Iterate over each dataset
+for dataset_name, dataset in datasets.items():
+    # Find the row index with the most number of replies
+    most_replies_index = dataset['number_reply'].idxmax()
+    
+    # Get the comment with the most number of replies
+    most_replies_comment = dataset.loc[most_replies_index, 'comment']
+    
+    # Get the number of replies
+    most_replies_count = dataset.loc[most_replies_index, 'number_reply']
+    
+    # Append dataset information to the table data list
+    table_data.append([dataset_name, most_replies_count, most_replies_comment])
+
+# Display the table
+print(tabulate(table_data, headers=['Dataset', 'Number of Replies', 'Comment with Most Replies']))
+
+```
+
+Table 2.3 also presents the comments with the most replies from each dataset and reflects diverse perspectives and engagement levels across different datasets.
+
+**Table 2.3:** *The Comments with the Most Number of Replies of Each Dataset*
+
+| Dataset   | Number of Replies | Comment with Most Replies                                                                                                                            |
+|-----------|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| antivegan | 4                 | Alright let's be fair here. My dad is 50, eats meat, and looks like he's 65. Could we at least make fair points instead of comparing just a single example? There are both plenty of attractive meat eaters and plenty of attractive vegans. |
+| cmv       | 3                 | I believe that they are and I have not found any evidence to the contrary.                                                                                                           |
+| isppfb    | 4                 | Vegan means no animal byproduct, including milk. vegetarian is the one that just means no meat.                                                                                       |
+| tfm       | 7                 | [deleted]                                                                                                                                                |
+| tfm2      | 9                 | Hope I have half the energy and Lust for Life that Iggy Pop has at 76                                                                                                            |
+| tupo      | 7                 | I've been a vegan for over 5 years and I am 47 years old and I ran two separate 100 mile weeks last year ... I don't know anyone who's accomplished that..                                    |
+
+
+# Preprocessing Steps 
+
+## Checking for Missing Values
+```{python}
+#| label: Check for missing values in each dataframe
+#| echo: false
+#| include: false
+
+# Check for missing values in the antivegan DataFrame
+antivegan_missing_values = antivegan.isnull().sum()
+print("Missing values in antivegan DataFrame:")
+print(antivegan_missing_values)
+
+# Check for missing values in the cmv DataFrame
+cmv_missing_values = cmv.isnull().sum()
+print("\nMissing values in cmv DataFrame:")
+print(cmv_missing_values)
+
+# Check for missing values in the isppfb DataFrame
+isppfb_missing_values = isppfb.isnull().sum()
+print("\nMissing values in isppfb DataFrame:")
+print(isppfb_missing_values)
+
+# Check for missing values in the tfm DataFrame
+tfm_missing_values = tfm.isnull().sum()
+print("\nMissing values in tfm DataFrame:")
+print(tfm_missing_values)
+
+# Check for missing values in the tfm2 DataFrame
+tfm2_missing_values = tfm2.isnull().sum()
+print("\nMissing values in tfm2 DataFrame:")
+print(tfm2_missing_values)
+
+# Check for missing values in the tupo DataFrame
+tupo_missing_values = tupo.isnull().sum()
+print("\nMissing values in tupo DataFrame:")
+print(tupo_missing_values)
+```
+
+**Table 3.1:** *Checking for Missing Values of Each Dataset*
+
+| Dataset   | comment | score | number_reply | parent_id |
+|-----------|---------|-------|--------------|-----------|
+| antivegan | 0       | 0     | 0            | 0         |
+| cmv       | 0       | 0     | 0            | 0         |
+| isppfb    | 0       | 0     | 0            | 0         |
+| tfm       | 0       | 0     | 0            | 0         |
+| tfm2      | 0       | 0     | 0            | 0         |
+| tupo      | 0       | 0     | 0            | 0         |
+
+As the output shown, it appears that there are no missing values in any of the datasets across all the DataFrames (antivegan, cmv, isppfb, tfm, tfm2, and tupo). This suggests that all the datasets are complete, with no null or missing entries in any of the columns (comment, score, number_reply, parent_id, and comment_cleaned). 
+
+## Defining Preprocessing Function for Cleaning Text Data
+
+Then, we defined a preprocessing function called "preprocess_text" to clean text data. We utilized the spaCy library for tokenization and stop word removal. The function converted text to lowercase, removes numbers, hyphens, punctuation, and extra whitespaces. It then lemmatized the tokens and joins them back into a string.
+
+The function is applied to the datatframes (antivegan, cmv, isppfb, tfm, tfm2, tfm3, tupo) to create new dataframes (antivegan_cleaned, cmv_cleaned, isppfb_cleaned, tfm_cleaned, tfm2_cleaned, tupo_cleaned) with cleaned comment data.
+
+Overall, we intend to apply these proprocessing steps for removing noise and standardizing the format, making it ready for further analysis or modeling.
+
+```{python}
+#| label: defining preprocessing function for cleaning text data
+#| echo: false
+
+nlp = spacy.load('en_core_web_md') # Load the spaCy model for English language
+def preprocess_text(text): # Define the preprocessing function
+    text = text.lower() # Convert text to lowercase
+    text = re.sub(r'\d+', ' ', text) # Remove numbers
+    text = re.sub(r'-', ' ', text) # Remove hyphens and replace with space
+    text = re.sub(r'[^\w\s]', '', text) # Remove punctuation
+    text = re.sub(r'\s+', ' ', text) # Replace multiple whitespaces with a single space
+    text = text.strip() # Strip any leading/trailing whitespace that may have appeared
+    doc = nlp(text) # Use spaCy for tokenization and stop word removal
+    tokens = [token.lemma_ for token in doc # Filter out tokens that are stop words, punctuation, whitespace, or single characters, and convert to lowercase
+              if not token.is_stop 
+              and not token.is_punct
+              and not token.is_space 
+              and not token.is_digit
+              and not token.like_num  # Check for numeric-like tokens
+              and not token.is_currency
+              and token.lemma_ != '-PRON-'
+              and len(token.text) > 1]
+    clean_text = ' '.join(tokens) # Join the tokens back into a string
+    return clean_text
+
+antivegan['comment_cleaned'] = antivegan['comment'].apply(preprocess_text)
+cmv['comment_cleaned'] = cmv['comment'].apply(preprocess_text)
+isppfb['comment_cleaned'] = isppfb['comment'].apply(preprocess_text)
+tfm['comment_cleaned'] = tfm['comment'].apply(preprocess_text)
+tfm2['comment_cleaned'] = tfm2['comment'].apply(preprocess_text)
+tupo['comment_cleaned'] = tupo['comment'].apply(preprocess_text)
+
+# Create new DataFrames with cleaned comments
+antivegan_cleaned = pd.DataFrame(antivegan)
+cmv_cleaned = pd.DataFrame(cmv)
+isppfb_cleaned = pd.DataFrame(isppfb)
+tfm_cleaned = pd.DataFrame(tfm)
+tfm2_cleaned = pd.DataFrame(tfm2)
+tupo_cleaned = pd.DataFrame(tupo)
+```
+
+As shown in Table 3.2, you can see an example of "antivegan_cleaned" as a new data frame below. 
+
+**Table 3.2:** *Show antivegan_cleaned After Preprocessing*
+
+```{python}
+#| label: show antivegan_cleaned after preprocessing
+#| echo: false
+#| message: true
+
+antivegan_cleaned.head(5)
+```
+
+```{python}
+#| label: show cmv_cleaned after preprocessing
+#| echo: false
+#| include: false
+
+cmv_cleaned.head(5)
+```
+
+```{python}
+#| label: show isppfb_cleaned after preprocessing
+#| echo: false
+#| include: false
+
+isppfb_cleaned.head(5)
+```
+
+```{python}
+#| label: show tfm_cleaned after preprocessing
+#| echo: false
+#| include: false
+
+tfm_cleaned.head(5)
+```
+
+```{python}
+#| label: show tfm2_cleaned after preprocessing
+#| echo: false
+#| include: false
+
+tfm2_cleaned.head(5)
+```
+
+```{python}
+#| label: show tupo_cleaned after preprocessing
+#| echo: false
+#| include: false
+
+tupo_cleaned.head(5)
+```
+
+## Checking for Removed and Deleted Comments
+
+Although there is no missing values in our datasets, we need to ensure the integrity and reliability of the data for analysis and further processing. Therefore, we also want to check for removed and deleted comments in the "comment" column and then remove them for further analysis to effectively extract insights.
+
+```{python}
+#| label: checking for removed and deleted comments
+#| echo: false
+#| include: false
+
+# Define the indicator for removed or deleted comments
+deleted_indicator = "[deleted]"
+removed_indicator = "[removed]"
+
+# Count the number of deleted comments in each DataFrame
+antivegan_deleted_count = (antivegan_cleaned['comment'] == deleted_indicator).sum()
+cmv_deleted_count = (cmv_cleaned['comment'] == deleted_indicator).sum()
+isppfb_deleted_count = (isppfb_cleaned['comment'] == deleted_indicator).sum()
+tfm_deleted_count = (tfm_cleaned['comment'] == deleted_indicator).sum()
+tfm2_deleted_count = (tfm2_cleaned['comment'] == deleted_indicator).sum()
+tupo_deleted_count = (tupo_cleaned['comment'] == deleted_indicator).sum()
+
+# Count the number of removed comments in each DataFrame
+antivegan_removed_count = (antivegan_cleaned['comment'] == removed_indicator).sum()
+cmv_removed_count = (cmv_cleaned['comment'] == removed_indicator).sum()
+isppfb_removed_count = (isppfb_cleaned['comment'] == removed_indicator).sum()
+tfm_removed_count = (tfm_cleaned['comment'] == removed_indicator).sum()
+tfm2_removed_count = (tfm2_cleaned['comment'] == removed_indicator).sum()
+tupo_removed_count = (tupo_cleaned['comment'] == removed_indicator).sum()
+
+# Define the data
+removed_counts = [antivegan_removed_count, cmv_removed_count, isppfb_removed_count, tfm_removed_count, tfm2_removed_count, tupo_removed_count]
+deleted_counts = [antivegan_deleted_count, cmv_deleted_count, isppfb_deleted_count, tfm_deleted_count, tfm2_deleted_count, tupo_deleted_count]
+data_labels = ['antivegan_cleaned', 'cmv_cleaned', 'isppfb_cleaned', 'tfm_cleaned', 'tfm2_cleaned','tupo_cleaned']
+
+# Plotting the data
+x = range(len(data_labels))
+width = 0.25  # the width of the bars
+
+fig, ax = plt.subplots(figsize=(10, 5))
+
+bar1 = ax.bar(x, removed_counts, width, label='Removed', color='orange')
+bar2 = ax.bar([i + width for i in x], deleted_counts, width, label='Deleted', color='crimson')
+
+# Add some text for labels, title and custom x-axis tick labels, etc.
+ax.set_ylabel('Count')
+ax.set_title('Counts of Removed and Deleted Comments of Each Dataframe')
+ax.set_xticks([i + width for i in x])
+ax.set_xticklabels(data_labels)
+ax.legend()
+
+# Add count labels on the bar plot
+for bar in bar1 + bar2:
+    yval = bar.get_height()
+    ax.text(bar.get_x() + bar.get_width()/2, yval, f'{int(yval)}', ha='center', va='bottom')
+
+# Display the bar chart
+plt.show()
+```
+
+**Figure 3.3:** *Check for flagged comments*
+
+![Figure 3: Count of Removed and Deleted Comments of Each Dataset](Photos/removed_deleted.png)
+
+Notably, “isppfb_cleaned”, “cmv_cleaned”, “tfm2_cleaned”, and “tupo_cleaned” exhibit a significant number of removed and deleted comments, respectively, indicating active moderation within the community. 
+
+Next, we filtered out flagged comments by removing rows with only “delete”, or “remove” in the “comment_cleaned” column to ensure data reliability for insights extraction.
+
+```{python}
+#| label: removing the removed and deleted comments
+#| echo: false
+#| include: false
+
+# Remove rows with only "delete", "remove", or "breaking" in the comment_cleaned column
+antivegan_cleaned = antivegan_cleaned[~antivegan_cleaned['comment_cleaned'].str.contains(r'^(delete|remove)$', case=False)]
+cmv_cleaned = cmv_cleaned[~cmv_cleaned['comment_cleaned'].str.contains(r'^(delete|remove)$', case=False)]
+isppfb_cleaned = isppfb_cleaned[~isppfb_cleaned['comment_cleaned'].str.contains(r'^(delete|remove)$', case=False)]
+tfm_cleaned = tfm_cleaned[~tfm_cleaned['comment_cleaned'].str.contains(r'^(delete|remove)$', case=False)]
+tfm2_cleaned = tfm2_cleaned[~tfm2_cleaned['comment_cleaned'].str.contains(r'^(delete|remove)$', case=False)]
+tupo_cleaned = tupo_cleaned[~tupo_cleaned['comment_cleaned'].str.contains(r'^(delete|remove)$', case=False)]
+
+# Reset index for each DataFrame after removing rows
+antivegan_cleaned.reset_index(drop=True, inplace=True)
+cmv_cleaned.reset_index(drop=True, inplace=True)
+isppfb_cleaned.reset_index(drop=True, inplace=True)
+tfm_cleaned.reset_index(drop=True, inplace=True)
+tfm2_cleaned.reset_index(drop=True, inplace=True)
+tupo_cleaned.reset_index(drop=True, inplace=True)
+```
+
+After filtering, the code resets the index for each dataset to ensure continuity. Overall, this process ensures that the datasets contain relevant comments for analysis by excluding those that primarily indicate removal or deletion.
+
+Finally, we would like to ensure that every dataframe has no comments marked as "removed," or "deleted," in their cleaned comment column. It calculates and prints the counts of such comments for each dataframe. By verifying and reporting these counts, it helps ensure the quality and integrity of the data for further analysis.
+
+```{python}
+#| label: ensure that every dataframe have no removed and deleted comments
+#| echo: false
+#| include: false
+#| eval: false
+
+# Define the indicator for removed or deleted comments
+deleted_indicator = "delete"
+removed_indicator = "remove"
+
+# Count the number of removed comments in each DataFrame
+antivegan_removed_count = (antivegan_cleaned['comment_cleaned'] == removed_indicator).sum()
+cmv_removed_count = (cmv_cleaned['comment_cleaned'] == removed_indicator).sum()
+isppfb_removed_count = (isppfb_cleaned['comment_cleaned'] == removed_indicator).sum()
+tfm_removed_count = (tfm_cleaned['comment_cleaned'] == removed_indicator).sum()
+tfm2_removed_count = (tfm2_cleaned['comment_cleaned'] == removed_indicator).sum()
+tupo_removed_count = (tupo_cleaned['comment_cleaned'] == removed_indicator).sum()
+
+# Count the number of deleted comments in each DataFrame
+antivegan_deleted_count = (antivegan_cleaned['comment_cleaned'] == deleted_indicator).sum()
+cmv_deleted_count = (cmv_cleaned['comment_cleaned'] == deleted_indicator).sum()
+isppfb_deleted_count = (isppfb_cleaned['comment_cleaned'] == deleted_indicator).sum()
+tfm_deleted_count = (tfm_cleaned['comment_cleaned'] == deleted_indicator).sum()
+tfm2_deleted_count = (tfm2_cleaned['comment_cleaned'] == deleted_indicator).sum()
+tupo_deleted_count = (tupo_cleaned['comment_cleaned'] == deleted_indicator).sum()
+
+# Print the counts of removed or deleted comments in each DataFrame
+print("To ensure that every dataframe have no removed/deleted/breaking rule comments")
+print("Removed comments in antivegan_cleaned DataFrame:", antivegan_removed_count)
+print("Deleted comments in antivegan_cleaned DataFrame:", antivegan_deleted_count)
+print("Removed comments in cmv_cleaned DataFrame:", cmv_removed_count)
+print("Deleted comments in cmv_cleaned DataFrame:", cmv_deleted_count)
+print("Removed comments in isppfb_cleaned DataFrame:", isppfb_removed_count)
+print("Deleted comments in isppfb_cleaned DataFrame:", isppfb_deleted_count)
+print("Removed comments in tfm_cleaned DataFrame:", tfm_removed_count)
+print("Deleted comments in tfm_cleaned DataFrame:", tfm_deleted_count)
+print("Removed comments in tfm2_cleaned DataFrame:", tfm2_removed_count)
+print("Deleted comments in tfm2_cleaned DataFrame:", tfm2_deleted_count)
+print("Removed comments in tupo_cleaned DataFrame:", tupo_removed_count)
+print("Deleted comments in tupo_cleaned DataFrame:", tupo_deleted_count)
+```
+
+**Table 3.3:** Checking for every dataframe have no removed, deleted, and breaking rule comments
+
+| DataFrame          | Removed Comments | Deleted Comments |
+|--------------------|------------------|------------------|
+| antivegan_cleaned  | 0                | 0                |
+| cmv_cleaned        | 0                | 0                |
+| isppfb_cleaned     | 0                | 0                |
+| tfm_cleaned        | 0                | 0                |
+| tfm2_cleaned       | 0                | 0                |
+| tupo_cleaned       | 0                | 0                |
+
+
+# Main Analysis: Topic Modeling, Clustering Classification, and Sentiment Analysis
+
+```{python}
+#| label: define preprocess function 
+#| echo: false
+#| include: false
+#| eval: false
+
+# Define preprocess function
+def preprocess(text):
+    # Tokenization
+    tokens = word_tokenize(text.lower())
+    
+    # Remove stopwords
+    stop_words = set(stopwords.words('english'))
+    filtered_tokens = [word for word in tokens if word not in stop_words]
+    
+    # Lemmatization
+    lemmatizer = WordNetLemmatizer()
+    lemmatized_tokens = [lemmatizer.lemmatize(word) for word in filtered_tokens]
+    
+    return lemmatized_tokens
+```
+
+## The "antivegan_cleaned" Dataframe
+
+### Topic Modeling for "antivegan_cleaned"
+
+We trained a Latent Dirichlet Allocation (LDA) topic model on some preprocessed text data related to anti-vegan sentiments. LDA is a popular technique used in natural language processing to extract topics from a collection of text documents.
+
+```{python}
+#| label: topic modeling for antivegan_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Combine the preprocessed text into lists
+antivegan_text = [preprocess(review) for review in antivegan_cleaned['comment_cleaned'].dropna()]
+
+# Create a Gensim dictionary from the text
+antivegan_dictionary = Dictionary(antivegan_text)
+
+# Filter out extremes to limit the number of features
+antivegan_dictionary.filter_extremes(no_below=5, no_above=0.5)
+
+# Convert the dictionary to a bag of words corpus
+antivegan_corpus = [antivegan_dictionary.doc2bow(text) for text in antivegan_text]
+
+# Train LDA model
+antivegan_topics = LdaModel(corpus=antivegan_corpus, id2word=antivegan_dictionary, num_topics=3, random_state=42, passes=10, iterations=50)
+
+# Display topics
+print("Topic Modeling for antivegan_cleaned:")
+for idx, topic in antivegan_topics.print_topics(-1):
+    print(f"Topic: {idx} \nWords: {topic}\n")
+```
+
+**Table 4.1.1:** *Topic Modeling for "antivegan_cleaned"*
+
+| Topic | "antivegan_cleaned": Top Words (Weights)                            |
+|-------|-----------------------------------------------|
+| 0     | like (0.438), vegan (0.265), look (0.231), people (0.034), bad (0.031) |
+| 1     | look (0.414), bad (0.268), vegan (0.166), people (0.137), like (0.015) |
+| 2     | people (0.592), vegan (0.314), look (0.042), bad (0.026), like (0.025) |
+
+In the output, These topics provide insights with a list of words and their corresponding probabilities of occurrence within that topic.
+
+- **Topic 0:** This topic seems to focus on discussions about negative perceptions of veganism, including how it is viewed unfavorably.
+
+- **Topic 1:** This topic appears to focus on how veganism is perceived to negatively affect one's appearance.
+
+- **Topic 2:** This topic involves general perceptions of veganism and people, including how vegans are viewed.
+
+Overall, the majority of comments express negative perceptions towards veganism, with an underlying sentiment that pro-vegan individuals are viewed unfavorably as expressed in the text data we analyzed.
+
+### Clustering Classification for "antivegan_cleaned"
+
+```{python}
+#| label: define number of clusters for antivegan_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Initialize TfidfVectorizer with ngram_range for single words, bigrams, and trigrams
+antivegan_vectorizer = TfidfVectorizer(ngram_range=(1, 3), max_features=5)
+
+# Fit and transform the entire preprocessed text data into TF-IDF model
+antivegan_matrix = antivegan_vectorizer.fit_transform(antivegan_cleaned['comment_cleaned'])
+
+# Define the number of clusters
+antivegan_num_clusters = 6
+
+# Initialize KMeans with the desired number of clusters
+kmeans = KMeans(n_clusters=antivegan_num_clusters, random_state=42)
+
+# Fit KMeans on the TF-IDF data
+kmeans.fit(antivegan_matrix)
+
+# Predict the cluster labels for each document
+antivegan_clusters = kmeans.labels_
+
+# Add cluster labels to your DataFrame
+antivegan_cleaned['antivegan_cluster'] = antivegan_clusters
+```
+
+```{python}
+#| label: elbow method for antivegan_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+plt.figure(figsize=(20, 8))  # Set a larger figure size for two subplots
+
+# Calculate WCSS for TFIDF
+wcss_tfidf = []
+for i in range(1, 11):
+    kmeans = KMeans(n_clusters=i, init='k-means++', max_iter=300, n_init=10, random_state=42)
+    kmeans.fit(antivegan_matrix)
+    wcss_tfidf.append(kmeans.inertia_)
+
+# Plot the elbow curve for TFIDF
+plt.plot(range(1, 11), wcss_tfidf, marker='o', color='blue', label='TF-IDF')
+
+# Add labels and title
+plt.title('The Elbow Method (TF-IDF) for Comments of antivegan_cleaned dataframe')
+plt.xlabel('Number of Clusters')
+plt.ylabel('Within-Cluster Sum of Squares (WCSS)')
+plt.legend()
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: silhouette score for antivegan_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Calculate silhouette score
+antivegan_score = silhouette_score(antivegan_matrix, antivegan_clusters)
+print(f"Silhouette Score (TFIDF): {antivegan_score}")
+```
+
+```{python}
+#| label: wordcloud for antivegan_cleaned dataframe
+#| echo: false
+#| include: false
+#| eval: false
+
+# Combine all text in each cluster into a single string
+antivegan_clusters = ["".join(antivegan_cleaned[antivegan_cleaned['antivegan_cluster'] == i]['comment_cleaned']) for i in range(antivegan_num_clusters)]
+
+# Generate word clouds for each cluster
+plt.figure(figsize=(15, 8))
+for i in range(antivegan_num_clusters):
+    # Check if the cluster has any words
+    if antivegan_clusters[i]:
+        wordcloud = WordCloud(width=800, height=400, background_color='white', colormap='magma').generate(antivegan_clusters[i])
+        plt.subplot(3, 3, i+1)  # Adjust subplot parameters as per your number of clusters
+        plt.imshow(wordcloud, interpolation='bilinear')
+        plt.title(f'Cluster {i} Word Cloud (TFIDF)')
+        plt.axis('off')
+    else:
+        print(f"Cluster {i} has no words.")
+
+# Add overall title for the entire plot
+plt.suptitle("Word Cloud for antivegan_cleaned", fontsize=16)
+plt.show()
+```
+
+```{python}
+#| label: keywords for antivegan_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Tokenize and preprocess texts in each cluster
+antivegan_cluster_texts = [antivegan_cleaned[antivegan_cleaned['antivegan_cluster'] == i]['comment_cleaned'] for i in range(antivegan_num_clusters)]
+antivegan_cluster_keywords = []
+
+for texts in antivegan_cluster_texts:
+    # Concatenate all texts in the cluster
+    cluster_text = ' '.join(texts)
+    # Tokenize and preprocess the concatenated text
+    cluster_tokens = preprocess(cluster_text)
+    # Extract unigrams, bigrams, and trigrams
+    n = 3  # You can adjust this value to get n-grams of different lengths
+    antivegan_cluster_ngrams = list(ngrams(cluster_tokens, n))
+    # Count n-gram frequencies
+    ngram_freq = Counter(antivegan_cluster_ngrams)
+    # Select top keywords (you can adjust the number of keywords as needed)
+    top_keywords = ngram_freq.most_common(5)  # Select top 10 n-grams
+    # Append selected keywords to the cluster_keywords list
+    antivegan_cluster_keywords.append([keyword for keyword, _ in top_keywords])
+
+# Create cluster summaries based on selected keywords
+antivegan_cluster_summaries = []
+for i, keywords_list in enumerate(antivegan_cluster_keywords):
+    # Extract only the n-grams from each tuple in keywords_list
+    keywords = [' '.join(keyword) for keyword in keywords_list]
+    antivegan_summary = f"Cluster {i} Summary: Individuals in this cluster value {', '.join(keywords)}."
+    antivegan_cluster_summaries.append(antivegan_summary)
+
+# Print cluster summaries
+for antivegan_summary in antivegan_cluster_summaries:
+    print(antivegan_summary)
+```
+
+**Figure 4.1.2:** *Word Clouds for "antivegan_cleaned"*
+
+![Figure 4.1.2: Word Clouds for "antivegan_cleaned"](Photos/wordcloud_antivegan.png)
+
+**Table 4.1.2A:** *Keyword Summary for "antivegan_cleaned"*
+
+| Cluster | Keyword Summary                                                                                              |
+|---------|------------------------------------------------------------------------------------------------------|
+| 0       | friend go vegan, go vegan year, vegan year ago, year ago look, ago look sick. |
+| 1       | want explore necrophilia, explore necrophilia social, necrophilia social stigma, social stigma wan, stigma wan na. |
+| 2       | people age prematurely, veganism eat disorderit, eat disorderit fucking, disorderit fucking mental, fucking mental disorder. |
+| 3       | discus vegan recently, vegan recently think, recently think age, think age actually, age actually try. |
+| 4       | maybe definitely main, definitely main reason, main reason recovered, reason recovered anorexic, recovered anorexic know. |
+| 5       | look like junkie, like junkie ne, junkie ne look, ne look skinny, look skinny probably. |
+
+
+For each cluster, we extracted keywords to summarize the main themes or topics discussed within that cluster. This summary reflects the thematic sentiments of six distinct clusters derived from comments on the Reddit platform, discussing veganism and its perceptions:
+
+- **Cluster 0:** Individuals in this cluster discuss recent thoughts about veganism and aging. This cluster relates to observations of physical changes, possibly deterioration, in someone who adopted a vegan diet, indicating a belief that the diet may be linked to poor health outcomes. 
+
+- **Cluster 1:** Individuals in this cluster express a desire to explore other topics such as necrophilia and social stigma. This cluster could be a case of a completely different topic being discussed in the midst of conversations about veganism.
+
+- **Cluster 2:** Individuals in this cluster discuss veganism in the context of eating disorders. This cluster expresses frustration and disbelief of veganism. Moreover, it contains harsh criticism on veganism, describing it as a mental disorder and associating it with negative physical effects.
+
+- **Cluster 3:** Individuals in this cluster discuss the physical appearance of people who follow a vegan diet, particularly focusing on signs of premature aging compared to omnivores.
+
+- **Cluster 4:** Individuals in this cluster touches on veganism in relation to eating disorders and discuss personal experiences or observations of friends who have adopted a vegan diet, indicating changes in their appearance and discussing health recovery over time from anorexia.
+
+- **Cluster 5:** Individuals in this cluster comment on the physical appearance of individuals who follow a vegan diet portrays a negative visual stereotype of vegans, describing them as looking like "junkies" and unnaturally thin, suggesting a perception of veganism as unhealthy.
+
+**Table 4.1.2B:** *Cluster Summary for antivegan_cleaned*
+
+| Cluster   | Description: Cluster Summary for antivegan_cleaned                                                                                                                                      |
+|-----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 0 | Discussions on veganism and aging, suggesting a link between vegan diet and poor health outcomes.  |
+| 1 | Off-topic discussions including necrophilia and social stigma, possibly unrelated to veganism.  |
+| 2 | Criticism of veganism, linking it to eating disorders and negative physical effects.  |
+| 3 | Focus on physical appearance, comparing vegans to omnivores and highlighting signs of premature aging.  |
+| 4 | Experiences of individuals with veganism and eating disorders, discussing health recovery over time.  |
+| 5 | Negative stereotypes about vegans' physical appearance, portraying them as unhealthy.  |
+
+
+Overall, these cluster summaries provide a range of attitudes towards veganism, from critical and negative stereotypes to discussions about health impacts and aging. The comments reflect a mixture of personal anecdotes, judgments, and potential misconceptions, giving insight into the varied opinions that exist on this topic within the AntiVegan subreddit. 
+
+In summary, Clusters 2, 3, and 5 are the suitable key points for the WHO to show prevalent concerns of people's perceptions and strong mechanisms of doubt regarding veganism and meat consumption, particularly surrounding health and nutrition aspects. These clusters highlight various negative perceptions and criticisms of veganism, including associations with eating disorders, premature aging, and negative physical stereotypes. These concerns reflect a significant level of skepticism and doubt regarding the health and nutritional aspects of vegan diets, which are crucial considerations for the WHO's efforts to address misinformation and promote accurate information about dietary choices.
+
+```{python}
+#| label: cluster summary for antivegan_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Count the number of data points in each cluster
+antivegan_cluster_counts = antivegan_cleaned['antivegan_cluster'].value_counts()
+
+# Define custom colors for the pie chart
+red_custom_colors = plt.cm.Reds(np.linspace(0.2, 1, 10))
+# Define custom colors for the bar chart
+orange_custom_color = ['orange' for _ in range(len(antivegan_cluster_counts))]
+
+# Create a 1x2 subplot layout
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+
+# Create a pie chart in the first subplot
+axes[0].pie(antivegan_cluster_counts.values, labels=antivegan_cluster_counts.index, autopct='%1.1f%%', startangle=140, colors=red_custom_colors)
+axes[0].set_title('Proportion of Data Points in Clusters\nof Comments in antivegan_cleaned Dataframe')
+axes[0].axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+# Create a bar plot in the second subplot
+bars = axes[1].bar(antivegan_cluster_counts.index, antivegan_cluster_counts.values, color=orange_custom_color)
+axes[1].set_xlabel('Cluster')
+axes[1].set_ylabel('Number of Data Points')
+axes[1].set_title('Distribution of Data Points in Clusters\nof Comments in antivegan_cleaned Dataframe')
+
+# Add count and percentage labels on the bar plot
+for bar in bars:
+    yval = bar.get_height()
+    axes[1].text(bar.get_x() + bar.get_width()/2, yval, f'{yval}', ha='center', va='bottom')
+    #percent = f'{100 * yval / len(db):.1f}%'
+    #axes[1].text(bar.get_x() + bar.get_width()/2, yval, f'({percent})', ha='center', va='top', color='white')
+
+# Adjust the layout so there's no overlap
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.1.2C: Cluster Distribution for "antivegan cleaned"](Photos/cluster_antivegan.png)
+
+The visualizations represent a data analysis of comments from from a dataset labeled "antivegan_cleaned" of the "AntiVegan" subreddit, sorted into six clusters. The chart shows the relative distribution of comments among these clusters, with Cluster 1 covering over 40% of the data, indicating it is the most common topic of discussion. The data suggest varied perspectives on veganism within this community, ranging from health concerns to off-topic discussions. The overall sentiment appears to lean towards skepticism or criticism of veganism, focusing on its potential negative health impacts and societal perceptions.
+
+### Sentiment Analysis for "antivegan_cleaned"
+
+```{python}
+#| label: average sentiment for antivegan_cleaned
+#| echo: false
+
+def analyze_sentiment(text):
+    blob = TextBlob(text)
+    return blob.sentiment.polarity
+
+antivegan_cleaned['antivegan_sentiment'] = antivegan_cleaned['comment_cleaned'].apply(analyze_sentiment)
+
+# Calculate average sentiment score for Pros_cleaned and Cons_cleaned in both datasets
+average_antivegan_sentiment = antivegan_cleaned['antivegan_sentiment'].mean()
+
+print("Average Sentiment (comment_cleaned) for antivegan_cleaned Dataframe:", average_antivegan_sentiment)
+```
+
+```{python}
+#| label: distribution of sentiment scores for antivegan_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+plt.figure(figsize=(10, 5)) 
+
+# Visualize the distribution of sentiment scores for antivegan_cleaned dataframe
+plt.hist(antivegan_cleaned['antivegan_sentiment'], color='orange', label='antivegan')
+plt.title('Distribution of Sentiment Scores for antivegan_cleaned')
+plt.xlabel('Sentiment Score')
+plt.ylabel('Frequency')
+plt.legend(loc='upper right')
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.1.3A: Sentiment Distribution for "antivegan cleaned"](Photos/sendis_antivegan.png)
+
+The provided histogram visualizes the sentiment scores of comments from the "antivegan_cleaned" DataFrame, with sentiment scores ranging from negative to positive. The majority of comments are concentrated around the zero mark, indicating neutral sentiment, with a significant peak just below zero. The presence of bars on both sides of the zero point suggests a mix of negative and positive sentiments among the comments. However, the average sentiment score of approximately -0.095 indicates that the overall sentiment of the comments leans slightly towards the negative side. This distribution and average score suggest that while there's a variety of opinions, the prevailing tone in the "antivegan" subreddit comments may be somewhat negative.
+
+```{python}
+#| label: sentiment label counts for antivegan_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+def sentiment_label(text):
+    score = TextBlob(text).sentiment.polarity
+    if score > 0:
+        return 'positive'
+    elif score <= 0:
+        return 'negative'
+
+antivegan_cleaned['antivegan_sentiment_label'] = antivegan_cleaned['comment_cleaned'].apply(sentiment_label)
+
+# Count the number of data points in each cluster
+antivegan_sentiment = antivegan_cleaned['antivegan_sentiment_label'].value_counts()
+
+# Define custom colors for the bar chart
+sentiment_custom_colors = {
+    'positive': 'green',
+    'negative': 'firebrick'
+}
+
+plt.figure(figsize=(12, 8))
+
+# Plot the distribution of sentiment
+antivegan_sentiment.plot(kind='bar', color=[sentiment_custom_colors[label] for label in antivegan_sentiment.index])
+plt.title('Distribution of People Sentiment (antivegan_cleaned) about this topic')
+plt.xlabel('Sentiment')
+plt.ylabel('Count')
+plt.tick_params(axis='x', rotation=360)  # Rotate x-axis labels by 360 degrees
+
+# Add count and percentage labels on the bar plot
+for index, value in enumerate(antivegan_sentiment.values):
+    plt.text(index, value, f'{value}\n({value/sum(antivegan_sentiment.values)*100:.1f}%)', ha='center', va='bottom')
+
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.1.3B: Sentiment Label Counts for "antivegan cleaned"](Photos/sencount_antivegan.png)
+
+The bar graph displays the sentiment distribution of comments from the "antivegan_cleaned" dataset, divided into negative and positive sentiments. The largest group is negative sentiments (72.4%) and then positive sentiments (27.6%). This suggests that there is a predominant tendency towards expressing negative viewpoints or emotions within the discussions. 
+
+## The "cmv_cleaned" Dataframe
+
+### Topic Modeling for "cmv_cleaned"
+
+```{python}
+#| label: topic modeling for cmv_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Combine the preprocessed text into lists
+cmv_text = [preprocess(review) for review in cmv_cleaned['comment_cleaned'].dropna()]
+
+# Create a Gensim dictionary from the text
+cmv_dictionary = Dictionary(cmv_text)
+
+# Filter out extremes to limit the number of features
+cmv_dictionary.filter_extremes(no_below=5, no_above=0.5)
+
+# Convert the dictionary to a bag of words corpus
+cmv_corpus = [cmv_dictionary.doc2bow(text) for text in cmv_text]
+
+# Train LDA model
+cmv_topics = LdaModel(corpus=cmv_corpus, id2word=cmv_dictionary, num_topics=3, random_state=42, passes=10, iterations=50)
+
+# Display topics
+print("Topic Modeling for cmv_cleaned:")
+for idx, topic in cmv_topics.print_topics(-1):
+    print(f"Topic: {idx} \nWords: {topic}\n")
+```
+
+**Table 4.2.1:** *Topic Modeling for "cmv_cleaned"*
+
+| Topic | "cmv_cleaned": Top Words (Word Weights)                               |
+|-------|--------------------------------------------------------|
+| 0     | vegan (0.093), plant (0.063), eat (0.059), base (0.042), diet (0.035), animal (0.022), veganism (0.020), people (0.018), food (0.018), product (0.017) |
+| 1     | vegan (0.060), like (0.039), eat (0.038), food (0.034), animal (0.030), vitamin (0.029), meat (0.027), supplement (0.023), diet (0.023), value (0.022) |
+| 2     | cult (0.075), vegan (0.069), people (0.051), animal (0.049), worship (0.034), unhealthy (0.031), diet (0.031), think (0.027), point (0.024), definition (0.023) |
+
+In the topic modeling results for the "cmv_cleaned" dataset, three main topics emerge:
+
+- **Topic 0:** This topic seems to focus on discussions related to veganism, focusing on plant-based diets and products. Keywords such as "vegan", "plant", "eat", and "diet" indicate conversations about plant-based eating habits and vegan lifestyle choices.
+
+- **Topic 1:** This topic appears to discuss various aspects of vegan diets, including food choices, animal products, nutritional value, and dietary supplements. Keywords like "food", "eat", "vitamin", "meat", and "supplement" suggest conversations about dietary preferences, nutritional considerations, and alternative sources of nutrients for vegans.
+
+- **Topic 2:** This topic is distinct, focusing on criticisms of veganism. Keywords like "cult", "worship", and "unhealthy" indicate discussions about negative perceptions or critiques of vegan diets as a cult-like ideology or unhealthy lifestyle choices. 
+
+Overall, these topics provide insights into the varied discussions within the "cmv_cleaned" dataset, covering aspects of vegan lifestyle choices, dietarychoices, nutritional considerations, and societal perceptions or criticisms of veganism.
+
+### Clustering Classification for "cmv_cleaned"
+
+```{python}
+#| label: define number of clusters for cmv_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Initialize TfidfVectorizer with ngram_range for single words, bigrams, and trigrams
+cmv_vectorizer = TfidfVectorizer(ngram_range=(1, 3), max_features=5)
+
+# Fit and transform the entire preprocessed text data into TF-IDF model
+cmv_matrix = cmv_vectorizer.fit_transform(cmv_cleaned['comment_cleaned'])
+
+# Define the number of clusters
+cmv_num_clusters = 7
+
+# Initialize KMeans with the desired number of clusters
+kmeans = KMeans(n_clusters=cmv_num_clusters, random_state=42)
+
+# Fit KMeans on the TF-IDF data
+kmeans.fit(cmv_matrix)
+
+# Predict the cluster labels for each document
+cmv_clusters = kmeans.labels_
+
+# Add cluster labels to your DataFrame
+cmv_cleaned['cmv_cluster'] = cmv_clusters
+
+# Print texts belonging to a specific cluster
+#for i in range(cmv_num_clusters):
+    #print(f"Cluster {i} texts:")
+    #print(cmv_cleaned[cmv_cleaned['cmv_cluster'] == i]['comment_cleaned'].head())
+    #print("\n")
+```
+
+```{python}
+#| label: elbow method for cmv_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+plt.figure(figsize=(20, 8))  # Set a larger figure size for two subplots
+
+# Calculate WCSS for TFIDF
+wcss_tfidf = []
+for i in range(1, 11):
+    kmeans = KMeans(n_clusters=i, init='k-means++', max_iter=300, n_init=10, random_state=42)
+    kmeans.fit(cmv_matrix)
+    wcss_tfidf.append(kmeans.inertia_)
+
+# Plot the elbow curve for TFIDF
+plt.plot(range(1, 11), wcss_tfidf, marker='o', color='blue', label='TF-IDF')
+
+# Add labels and title
+plt.title('The Elbow Method (TF-IDF) for Comments of cmv_cleaned dataframe')
+plt.xlabel('Number of Clusters')
+plt.ylabel('Within-Cluster Sum of Squares (WCSS)')
+plt.legend()
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: Silhouette Score for cmv_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Calculate silhouette score
+cmv_score = silhouette_score(cmv_matrix, cmv_clusters)
+print(f"Silhouette Score (TFIDF): {cmv_score}")
+```
+
+```{python}
+#| label: wordclouds for cmv_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Combine all text in each cluster into a single string
+cmv_clusters = ["".join(cmv_cleaned[cmv_cleaned['cmv_cluster'] == i]['comment_cleaned']) for i in range(cmv_num_clusters)]
+
+# Generate word clouds for each cluster
+plt.figure(figsize=(15, 8))
+for i in range(cmv_num_clusters):
+    # Check if the cluster has any words
+    if cmv_clusters[i]:
+        wordcloud = WordCloud(width=800, height=400, background_color='white', colormap='magma').generate(cmv_clusters[i])
+        plt.subplot(3, 3, i+1)  # Adjust subplot parameters as per your number of clusters
+        plt.imshow(wordcloud, interpolation='bilinear')
+        plt.title(f'Cluster {i} Word Cloud (TFIDF)')
+        plt.axis('off')
+    else:
+        print(f"Cluster {i} has no words.")
+
+# Add overall title for the entire plot
+plt.suptitle("Word Cloud for cmv_cleaned", fontsize=16)
+plt.show()
+```
+
+```{python}
+#| label: keywords for cmv_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Tokenize and preprocess texts in each cluster
+cmv_cluster_texts = [cmv_cleaned[cmv_cleaned['cmv_cluster'] == i]['comment_cleaned'] for i in range(cmv_num_clusters)]
+cmv_cluster_keywords = []
+
+for texts in cmv_cluster_texts:
+    # Concatenate all texts in the cluster
+    cluster_text = ' '.join(texts)
+    # Tokenize and preprocess the concatenated text
+    cluster_tokens = preprocess(cluster_text)
+    # Extract unigrams, bigrams, and trigrams
+    n = 3  # You can adjust this value to get n-grams of different lengths
+    cmv_cluster_ngrams = list(ngrams(cluster_tokens, n))
+    # Count n-gram frequencies
+    ngram_freq = Counter(cmv_cluster_ngrams)
+    # Select top keywords (you can adjust the number of keywords as needed)
+    top_keywords = ngram_freq.most_common(5)  # Select top 10 n-grams
+    # Append selected keywords to the cluster_keywords list
+    cmv_cluster_keywords.append([keyword for keyword, _ in top_keywords])
+
+# Create cluster summaries based on selected keywords
+cmv_cluster_summaries = []
+for i, keywords_list in enumerate(cmv_cluster_keywords):
+    # Extract only the n-grams from each tuple in keywords_list
+    keywords = [' '.join(keyword) for keyword in keywords_list]
+    cmv_summary = f"Cluster {i} Summary: Individuals in this cluster value {', '.join(keywords)}."
+    cmv_cluster_summaries.append(cmv_summary)
+
+# Print cluster summaries
+for cmv_summary in cmv_cluster_summaries:
+    print(cmv_summary)
+```
+
+**Figure 4.2.2:** *Word Clouds for "cmv_cleaned"*
+
+![Figure 4.2.2: Word Clouds for "cmv_cleaned"](Photos/wordcloud_cmv.png)
+
+**Table 4.2.2A:** *Keyword Summary for "cmv_cleaned"*
+
+| Cluster | Keyword Summary                                                                                                                               |
+|---------|---------------------------------------------------------------------------------------------------------------------------------------|
+| 0       | comment remove break, remove break rule, wiki page information, page information like appeal.        |
+| 1       | value webster definition cult, welcome agree choice, agree choice individual, choice individual core belief. |
+| 2       | eat human kill, human kill human, plant base food, eat fry cheese, quote tenet directly.              |
+| 3       | coin term vegan, term vegan co, bow hunt animal, hunt animal food, animal food kid.                  |
+| 4       | level playing field, veganism put individual, put individual unhealthy, individual unhealthy god.    |
+| 5       | plant base diet, plant base eater, veganism physically unhealthy, physically unhealthy supplement.    |
+| 6       | worship animal worship, want kill animal, kill animal constitute, animal constitute worship.        |
+
+
+These summaries are derived from analyzing the comments in each cluster. 
+
+- **Cluster 0:** Individuals in this cluster emphasizes discussions related to rules, guidelines, and moderation actions on the subreddit, such as comment removals and adherence to rules.
+
+- **Cluster 1:** Individuals in this cluster prioritize understanding and agreeing on the core beliefs and choices of individuals, often referring to definitions and welcoming diverse perspectives.
+
+- **Cluster 2:** Topics in this cluster revolve around food choices, including ethical considerations of eating meat, including debates on consuming animal products and plant-based diets.
+
+- **Cluster 3:** Discussions in this cluster cover various aspects of veganism, including terminology, hunting practices, and the ethics of consuming animal products.
+
+- **Cluster 4:** This cluster delves into the concept of fairness and critiques the perceived health implications and moral aspects of veganism.
+
+- **Cluster 5:** Individuals in this cluster explore the health aspects of veganism and plant-based diets, including concerns about nutritional adequacy and the use of supplements.
+
+- **Cluster 6:** Topics in this cluster center around the ethics of animal worship, killing animals, and the implications of such practices. They also debate on killing animals for consumption.
+
+**Table 4.2.2B:** *Cluster Summary for cmv_cleaned*
+
+| Cluster | Description: Cluster Summary for cmv_cleaned                                                                                   |
+|---------|-------------------------------------------------------------------------------------------|
+| 0       | Focuses on subreddit rules, moderation, and adherence to guidelines.                     |
+| 1       | Prioritizes understanding and respecting diverse beliefs and perspectives.                 |
+| 2       | Discusses ethical considerations of food choices, including plant-based diets.             |
+| 3       | Covers various aspects of veganism, such as terminology and hunting practices.              |
+| 4       | Critiques the perceived health and moral implications of veganism.                          |
+| 5       | Explores health aspects of veganism, including nutrition and supplement concerns.          |
+| 6       | Centers around the ethics of animal worship, killing, and consumption debates.              |
+
+
+These cluster summaries represent diverse perspectives and interests within the "changemyview" community, ranging from ethical considerations to discussions about dietary choices and community rules.
+
+In summary, Cluster 5 appears to be the most relevant cluster for the WHO to show prevalent concerns of people's perceptions and strong mechanisms of doubt regarding veganism and meat consumption, particularly surrounding health and nutrition aspects. This cluster specifically explores the health aspects of veganism and plant-based diets, including concerns about nutritional adequacy and the use of supplements. Therefore, it provides valuable insights into the potential health-related skepticism and uncertainties surrounding dietary choices, which are crucial considerations for the WHO in addressing misinformation and promoting accurate information about health and nutrition.
+
+```{python}
+#| label: cluster summary for cmv_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Count the number of data points in each cluster
+cmv_cluster_counts = cmv_cleaned['cmv_cluster'].value_counts()
+
+# Define custom colors for the pie chart
+red_custom_colors = plt.cm.Reds(np.linspace(0.2, 1, 10))
+# Define custom colors for the bar chart
+purple_custom_color = ['purple' for _ in range(len(cmv_cluster_counts))]
+
+# Create a 1x2 subplot layout
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+
+# Create a pie chart in the first subplot
+axes[0].pie(cmv_cluster_counts.values, labels=cmv_cluster_counts.index, autopct='%1.1f%%', startangle=140, colors=red_custom_colors)
+axes[0].set_title('Proportion of Data Points in Clusters\nof Comments in cmv_cleaned Dataframe')
+axes[0].axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+# Create a bar plot in the second subplot
+bars = axes[1].bar(cmv_cluster_counts.index, cmv_cluster_counts.values, color=purple_custom_color)
+axes[1].set_xlabel('Cluster')
+axes[1].set_ylabel('Number of Data Points')
+axes[1].set_title('Distribution of Data Points in Clusters\nof Comments in cmv_cleaned Dataframe')
+
+# Add count and percentage labels on the bar plot
+for bar in bars:
+    yval = bar.get_height()
+    axes[1].text(bar.get_x() + bar.get_width()/2, yval, f'{yval}', ha='center', va='bottom')
+    #percent = f'{100 * yval / len(db):.1f}%'
+    #axes[1].text(bar.get_x() + bar.get_width()/2, yval, f'({percent})', ha='center', va='top', color='white')
+
+# Adjust the layout so there's no overlap
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.2.2C: Cluster Distribution for "cmv_cleaned"](Photos/cluster_cmv.png)
+
+The visualizations illustrate the distribution of comments from the "cmv_cleaned" DataFrame among seven thematic clusters. They reveal that Cluster 1, with approximately 28.6% of the comments, is the dominant theme of discussion, emphasizing the importance of respecting dietary choices. Interestingly, Cluster 5 show a considerable portion of comments, indicating widespread concern regarding nutritional adequacy, supplement usage, and the health implications associated with veganism and plant-based diets.
+
+### Sentiment Analysis for "cmv_cleaned"
+
+```{python}
+#| label: average sentiment for cmv_cleaned
+#| echo: false
+
+cmv_cleaned['cmv_sentiment'] = cmv_cleaned['comment_cleaned'].apply(analyze_sentiment)
+
+# Calculate average sentiment score for Pros_cleaned and Cons_cleaned in both datasets
+average_cmv_sentiment = cmv_cleaned['cmv_sentiment'].mean()
+
+print("Average Sentiment (comment_cleaned) for cmv_cleaned Dataframe:", average_cmv_sentiment)
+```
+
+```{python}
+#| label: distribution of sentiment scores for cmv_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+plt.figure(figsize=(10, 5)) 
+
+# Visualize the distribution of sentiment scores for cmv_cleaned dataframe
+plt.hist(cmv_cleaned['cmv_sentiment'], color='purple', label='cmv')
+plt.title('Distribution of Sentiment Scores for cmv_cleaned)')
+plt.xlabel('Sentiment Score')
+plt.ylabel('Frequency')
+plt.legend(loc='upper right')
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.2.3A: Sentiment Distribution for "cmv_cleaned"](Photos/sendis_cmv.png)
+
+The histogram visualizes sentiment scores for comments from the "cmv_cleaned" DataFrame, showing a distribution of sentiments from negative to positive. The sentiment scores are spread across the spectrum, with a noticeable peak at zero, indicating a large number of neutral comments. The overall average sentiment score is slightly negative at -0.044, suggesting that the general tone of comments leans negative, but not strongly so. This spread indicates a mix of opinions, with a significant portion of neutral sentiments.
+
+```{python}
+#| label: sentiment label counts for cmv_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+cmv_cleaned['cmv_sentiment_label'] = cmv_cleaned['comment_cleaned'].apply(sentiment_label)
+
+# Count the number of data points in each cluster
+cmv_sentiment = cmv_cleaned['cmv_sentiment_label'].value_counts()
+
+# Define custom colors for the bar chart
+sentiment_custom_colors = {
+    'positive': 'green',
+    'negative': 'firebrick'
+}
+
+plt.figure(figsize=(12, 8))
+
+# Plot the distribution of sentiment
+cmv_sentiment.plot(kind='bar', color=[sentiment_custom_colors[label] for label in cmv_sentiment.index])
+plt.title('Distribution of People Sentiment (cmv_cleaned) about this topic')
+plt.xlabel('Sentiment')
+plt.ylabel('Count')
+plt.tick_params(axis='x', rotation=360)  # Rotate x-axis labels by 360 degrees
+
+# Add count and percentage labels on the bar plot
+for index, value in enumerate(cmv_sentiment.values):
+    plt.text(index, value, f'{value}\n({value/sum(cmv_sentiment.values)*100:.1f}%)', ha='center', va='bottom')
+
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.2.3B: Sentiment Label Counts for "cmv_cleaned"](Photos/sencount_cmv.png)
+
+The bar graph illustrates the sentiment distribution of comments from the "cmv_cleaned" dataset, categorized as negative and positive. The largest category is negative sentiment (71.4%) and then positive sentiment (28.6%). The data suggests that discussions on the topic are more often negative. 
+
+## The "isppfb_cleaned" Dataframe
+
+### Topic Modeling for "isppfb_cleaned"
+
+```{python}
+#| label: topic modeling for isppfb_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Combine the preprocessed text into lists
+isppfb_text = [preprocess(review) for review in isppfb_cleaned['comment_cleaned'].dropna()]
+
+# Create a Gensim dictionary from the text
+isppfb_dictionary = Dictionary(isppfb_text)
+
+# Filter out extremes to limit the number of features
+isppfb_dictionary.filter_extremes(no_below=5, no_above=0.5)
+
+# Convert the dictionary to a bag of words corpus
+isppfb_corpus = [isppfb_dictionary.doc2bow(text) for text in isppfb_text]
+
+# Train LDA model
+isppfb_topics = LdaModel(corpus=isppfb_corpus, id2word=isppfb_dictionary, num_topics=3, random_state=42, passes=10, iterations=50)
+
+# Display topics
+print("Topic Modeling for isppfb_cleaned:")
+for idx, topic in isppfb_topics.print_topics(-1):
+    print(f"Topic: {idx} \nWords: {topic}\n")
+```
+
+**Table 4.3.1:** *Topic Modeling for "isppfb_cleaned"*
+
+| Topic | "isppfb_cleaned": Top Words (Word Weights)                                        |
+|-------|-----------------------------------------------------------------|
+| 0     | baby (0.206), like (0.109), look (0.088), vegan (0.072), diet (0.064), think (0.057), old (0.056), newborn (0.048), say (0.042), wrong (0.041) |
+| 1     | vegan (0.128), eat (0.107), people (0.064), know (0.057), think (0.057), way (0.057), mean (0.052), comment (0.051), meat (0.047), point (0.042) |
+| 2     | vegan (0.118), milk (0.114), cow (0.105), child (0.097), dairy (0.078), formula (0.068), animal (0.052), kill (0.050), eat (0.044), like (0.044) |
+
+
+In the output, there are three topics and for each topic, there is a list of words along with their corresponding probabilities of occurrence within that topic. 
+
+- **Topic 0:** This topic appears to focus on discussions related to babies and newborns, particularly in how they appear or are perceived in relation to vegan diets. Words like "baby", "like", "look", "vegan", and "diet" suggest conversations about the appearance of babies, opinions on vegan diets for infants, and concerns about their well-being.
+
+- **Topic 1:** This topic seems to involve discussions about dietary choices, including the meaning and implications of veganism. Words like "vegan", "eat", "people", "think", and "meat" indicate conversations about people's knowledge and opinions of vegan diets, including perspectives on veganism.
+
+- **Topic 2:** This topic revolves around discussions concerning dairy products, particularly cow's milk and its implications for children. Words like "milk", "cow", "child", "dairy", and "formula" suggest conversations about the consumption of dairy products by children, debates about the ethics of dairy farming, and considerations regarding alternatives to cow's milk.
+
+Overall, these topics reflect different aspects of discussions about veganism, including its implications for babies, dietary choices, and debates surrounding dairy consumption.
+
+### Clustering Classification for "isppfb_cleaned"
+```{python}
+#| label: define number of clusters for isppfb_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Initialize TfidfVectorizer with ngram_range for single words, bigrams, and trigrams
+isppfb_vectorizer = TfidfVectorizer(ngram_range=(1, 3), max_features=5)
+
+# Fit and transform the entire preprocessed text data into TF-IDF model
+isppfb_matrix = isppfb_vectorizer.fit_transform(isppfb_cleaned['comment_cleaned'])
+
+# Define the number of clusters
+isppfb_num_clusters = 7
+
+# Initialize KMeans with the desired number of clusters
+kmeans = KMeans(n_clusters=isppfb_num_clusters, random_state=42)
+
+# Fit KMeans on the TF-IDF data
+kmeans.fit(isppfb_matrix)
+
+# Predict the cluster labels for each document
+isppfb_clusters = kmeans.labels_
+
+# Add cluster labels to your DataFrame
+isppfb_cleaned['isppfb_cluster'] = isppfb_clusters
+
+# Print texts belonging to a specific cluster
+#for i in range(isppfb_num_clusters):
+    #print(f"Cluster {i} texts:")
+    #print(isppfb_cleaned[isppfb_cleaned['isppfb_cluster'] == i]['comment_cleaned'].head())
+    #print("\n")
+```
+
+```{python}
+#| label: elbow method for isppfb_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+plt.figure(figsize=(20, 8))  # Set a larger figure size for two subplots
+
+# Calculate WCSS for TFIDF
+wcss_tfidf = []
+for i in range(1, 11):
+    kmeans = KMeans(n_clusters=i, init='k-means++', max_iter=300, n_init=10, random_state=42)
+    kmeans.fit(isppfb_matrix)
+    wcss_tfidf.append(kmeans.inertia_)
+
+# Plot the elbow curve for TFIDF
+plt.plot(range(1, 11), wcss_tfidf, marker='o', color='blue', label='TF-IDF')
+
+# Add labels and title
+plt.title('The Elbow Method (TF-IDF) for Comments of isppfb_cleaned dataframe')
+plt.xlabel('Number of Clusters')
+plt.ylabel('Within-Cluster Sum of Squares (WCSS)')
+plt.legend()
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: silhouette score for isppfb
+#| echo: false
+#| include: false
+#| eval: false
+
+# Calculate silhouette score
+isppfb_score = silhouette_score(isppfb_matrix, isppfb_clusters)
+print(f"Silhouette Score (TFIDF): {isppfb_score}")
+```
+
+```{python}
+#| label: wordclouds for isppfb_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Combine all text in each cluster into a single string
+isppfb_clusters = ["".join(isppfb_cleaned[isppfb_cleaned['isppfb_cluster'] == i]['comment_cleaned']) for i in range(isppfb_num_clusters)]
+
+# Generate word clouds for each cluster
+plt.figure(figsize=(15, 8))
+for i in range(isppfb_num_clusters):
+    # Check if the cluster has any words
+    if isppfb_clusters[i]:
+        wordcloud = WordCloud(width=800, height=400, background_color='white', colormap='magma').generate(isppfb_clusters[i])
+        plt.subplot(3, 3, i+1)  # Adjust subplot parameters as per your number of clusters
+        plt.imshow(wordcloud, interpolation='bilinear')
+        plt.title(f'Cluster {i} Word Cloud (TFIDF)')
+        plt.axis('off')
+    else:
+        print(f"Cluster {i} has no words.")
+
+# Add overall title for the entire plot
+plt.suptitle("Word Cloud for isppfb_cleaned", fontsize=16)
+plt.show()
+```
+
+```{python}
+#| label: keyword for isppfb_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Tokenize and preprocess texts in each cluster
+isppfb_cluster_texts = [isppfb_cleaned[isppfb_cleaned['isppfb_cluster'] == i]['comment_cleaned'] for i in range(isppfb_num_clusters)]
+isppfb_cluster_keywords = []
+
+for texts in isppfb_cluster_texts:
+    # Concatenate all texts in the cluster
+    cluster_text = ' '.join(texts)
+    # Tokenize and preprocess the concatenated text
+    cluster_tokens = preprocess(cluster_text)
+    # Extract unigrams, bigrams, and trigrams
+    n = 3  # You can adjust this value to get n-grams of different lengths
+    isppfb_cluster_ngrams = list(ngrams(cluster_tokens, n))
+    # Count n-gram frequencies
+    ngram_freq = Counter(isppfb_cluster_ngrams)
+    # Select top keywords (you can adjust the number of keywords as needed)
+    top_keywords = ngram_freq.most_common(5)  # Select top 10 n-grams
+    # Append selected keywords to the cluster_keywords list
+    isppfb_cluster_keywords.append([keyword for keyword, _ in top_keywords])
+
+# Create cluster summaries based on selected keywords
+isppfb_cluster_summaries = []
+for i, keywords_list in enumerate(isppfb_cluster_keywords):
+    # Extract only the n-grams from each tuple in keywords_list
+    keywords = [' '.join(keyword) for keyword in keywords_list]
+    isppfb_summary = f"Cluster {i} Summary: Individuals in this cluster value {', '.join(keywords)}."
+    isppfb_cluster_summaries.append(isppfb_summary)
+
+# Print cluster summaries
+for isppfb_summary in isppfb_cluster_summaries:
+    print(isppfb_summary)
+```
+
+**Figure 4.3.2:** *Word Clouds for "isppfb_cleaned"*
+
+![Figure 4.3.2: Word Clouds for "isppfb_cleaned"](Photos/wordcloud_isppfb.png)
+
+**Table 4.3.2A:** *Keyword Summary for "isppfb_cleaned"*
+
+| Cluster | Summary                                                                                                                         |
+|---------|---------------------------------------------------------------------------------------------------------------------------------|
+| 0       | meme definitely evidence, definitely evidence child, evidence child protective, child protective service, protective service hear. |
+| 1       | breast milk vegan, milk vegan read, vegan read peer, read peer review, peer review study.  |
+| 2       | baby look like, think baby look, look like year, like year old, look like vizzini.        |
+| 3       | say baby healthy, baby healthy vegan, holy shot kid, shot kid look, kid look thin.          |
+| 4       | probably caption misleadingdoesnt, caption misleadingdoesnt sense, misleadingdoesnt sense newborn, sense newborn age, newborn age eat. |
+| 5       | long allow child, allow child bet, child bet atleast, bet atleast week, atleast week official. |
+| 6       | ya httpswwwsciencedirectcomsciencearticleabspiis herehttpshealthclevelandclinicorgis, httpswwwsciencedirectcomsciencearticleabspiis herehttpshealthclevelandclinicorgis vegan, herehttpshealthclevelandclinicorgis vegan diet, vegan diet safe, diet safe grow. |
+
+
+Based on the provided summaries of each cluster, it appears that these clusters represent different topics or themes that individuals are discussing.
+
+- **Cluster 0:** This cluster focuses on discussions related to evidence and concerns regarding child protective services, particularly in the context of child welfare and protection.
+
+- **Cluster 1:** Discussion in this cluster center around the breastfeeding with vegan milk, with references to peer-reviewed studies and discussions about its suitability.
+
+- **Cluster 2:** Individuals in this cluster discuss about the appearance of babies and children, often comparing them to older children or fictional characters like Vizzini and concerns about thinness.
+
+- **Cluster 3:** This cluster highlights discussions about the health of vegan babies, with mentions of concerns about thinness and comments expressing opinions on their appearance and well-being.
+
+- **Cluster 4:** Discussions in this cluster revolve around misleading captions and debates about whether newborns should consume certain foods based on their age.
+
+- **Cluster 5:** Individuals in this cluster discuss the duration or a suitable timeframe for which children should be allowed to follow certain diets.
+
+- **Cluster 6:** This cluster references scientific articles and sources discussing the safety and suitability of vegan diets for children's growth and development.
+
+**Table 4.3.2B:** *Cluster Summary for isppfb_cleaned*
+
+| Cluster | Description: Cluster Summary for isppfb_cleaned                                                                                            |
+|---------|-----------------------------------------------------------------------------------------------------|
+| 0       | Focuses on evidence and concerns regarding child protective services, particularly child welfare.    |
+| 1       | Centers around breastfeeding with vegan milk, referencing peer-reviewed studies on its suitability. |
+| 2       | Discusses the appearance of babies and concerns about thinness, often comparing them to older children. |
+| 3       | Highlights discussions about the health and well-being of vegan babies, including concerns about thinness. |
+| 4       | Revolves around debates on misleading captions and food suitability for newborns.                   |
+| 5       | Discusses the appropriate timeframe for children to follow specific diets.                         |
+| 6       | References scientific articles on the safety and suitability of vegan diets for children's growth.  |
+
+
+Each cluster seems to represent a distinct topic of conversation related to parenting, child health, and dietary choices, with varying levels of specificity and focus.
+
+```{python}
+#| label: cluster summary for isppfb_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Count the number of data points in each cluster
+isppfb_cluster_counts = isppfb_cleaned['isppfb_cluster'].value_counts()
+
+# Define custom colors for the pie chart
+red_custom_colors = plt.cm.Reds(np.linspace(0.2, 1, 10))
+# Define custom colors for the bar chart
+crimson_custom_color = ['crimson' for _ in range(len(isppfb_cluster_counts))]
+
+# Create a 1x2 subplot layout
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+
+# Create a pie chart in the first subplot
+axes[0].pie(isppfb_cluster_counts.values, labels=isppfb_cluster_counts.index, autopct='%1.1f%%', startangle=140, colors=red_custom_colors)
+axes[0].set_title('Proportion of Data Points in Clusters\nof Comments in isppfb_cleaned Dataframe')
+axes[0].axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+# Create a bar plot in the second subplot
+bars = axes[1].bar(isppfb_cluster_counts.index, isppfb_cluster_counts.values, color=crimson_custom_color)
+axes[1].set_xlabel('Cluster')
+axes[1].set_ylabel('Number of Data Points')
+axes[1].set_title('Distribution of Data Points in Clusters\nof Comments in isppfb_cleaned Dataframe')
+
+# Add count and percentage labels on the bar plot
+for bar in bars:
+    yval = bar.get_height()
+    axes[1].text(bar.get_x() + bar.get_width()/2, yval, f'{yval}', ha='center', va='bottom')
+    #percent = f'{100 * yval / len(db):.1f}%'
+    #axes[1].text(bar.get_x() + bar.get_width()/2, yval, f'({percent})', ha='center', va='top', color='white')
+
+# Adjust the layout so there's no overlap
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.3.2C: Cluster Distribution for "isppfb_cleaned"](Photos/cluster_isppfb.png)
+
+The visualizations depict comments from a dataset categorized into seven themes. The largest portion of the conversation (Cluster 0, 27.5%) discusses child welfare in the context of diet. The remaining clusters cover topics such as the nutritional adequacy of vegan diets for children, the health and appearance of vegan children, and referencing scientific and health information. The overall distribution suggests diverse but focused discussions on child health and veganism.
+
+### Sentiment Analysis for "isppfb_cleaned"
+
+```{python}
+#| label: average sentiment for isppfb_cleaned
+#| echo: false
+
+isppfb_cleaned['isppfb_sentiment'] = isppfb_cleaned['comment_cleaned'].apply(analyze_sentiment)
+
+# Calculate average sentiment score for Pros_cleaned and Cons_cleaned in both datasets
+average_isppfb_sentiment = isppfb_cleaned['isppfb_sentiment'].mean()
+
+print("Average Sentiment (comment_cleaned) for isppfb_cleaned Dataframe:", average_isppfb_sentiment)
+```
+
+```{python}
+#| label: distribution of sentiment scores for isppfb_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+plt.figure(figsize=(10, 5)) 
+
+# Visualize the distribution of sentiment scores for isppfb_cleaned dataframe
+plt.hist(isppfb_cleaned['isppfb_sentiment'], color='crimson', label='isppfb')
+plt.title('Distribution of Sentiment Scores for isppfb_cleaned)')
+plt.xlabel('Sentiment Score')
+plt.ylabel('Frequency')
+plt.legend(loc='upper right')
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.3.3A: Sentiment Distribution for "isppfb_cleaned"](Photos/sendis_isppfb.png)
+
+The histogram displays the distribution of sentiment scores for the "isppfb_cleaned" DataFrame. Sentiment scores range from negative to positive, with a peak at zero, indicating a significant number of neutral comments. The average sentiment score is just above zero at approximately 0.0049, suggesting an overall balanced sentiment with a very slight lean towards the positive. This balance indicates a diversity of opinions within the dataset.
+
+```{python}
+#| label: sentiment label counts for isppfb_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+isppfb_cleaned['isppfb_sentiment_label'] = isppfb_cleaned['comment_cleaned'].apply(sentiment_label)
+
+# Count the number of data points in each cluster
+isppfb_sentiment = isppfb_cleaned['isppfb_sentiment_label'].value_counts()
+
+# Define custom colors for the bar chart
+sentiment_custom_colors = {
+    'positive': 'green',
+    'negative': 'firebrick'
+}
+
+plt.figure(figsize=(12, 8))
+
+# Plot the distribution of sentiment
+isppfb_sentiment.plot(kind='bar', color=[sentiment_custom_colors[label] for label in isppfb_sentiment.index])
+plt.title('Distribution of People Sentiment (isppfb_cleaned) about this topic')
+plt.xlabel('Sentiment')
+plt.ylabel('Count')
+plt.tick_params(axis='x', rotation=360)  # Rotate x-axis labels by 360 degrees
+
+# Add count and percentage labels on the bar plot
+for index, value in enumerate(isppfb_sentiment.values):
+    plt.text(index, value, f'{value}\n({value/sum(isppfb_sentiment.values)*100:.1f}%)', ha='center', va='bottom')
+
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.3.3B: Sentiment Label Counts for "isppfb_cleaned"](Photos/sencount_isppfb.png)
+
+The bar graph shows sentiment analysis results for the "isppfb_cleaned" dataset. The sentiments are categorized as positive and negative. Negative sentiments are the largest group (62.3%) and positive sentiments are substantially less (37.7%). This distribution indicates a prevalent tendency towards expressing negative opinions or emotions within the discussions. 
+
+## The "tfm_cleaned" Dataframe
+
+### Topic Modeling for "tfm_cleaned"
+```{python}
+#| label: topic modeling for tfm_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Combine the preprocessed text into lists
+tfm_text = [preprocess(review) for review in tfm_cleaned['comment_cleaned'].dropna()]
+
+# Create a Gensim dictionary from the text
+tfm_dictionary = Dictionary(tfm_text)
+
+# Filter out extremes to limit the number of features
+tfm_dictionary.filter_extremes(no_below=5, no_above=0.5)
+
+# Convert the dictionary to a bag of words corpus
+tfm_corpus = [tfm_dictionary.doc2bow(text) for text in tfm_text]
+
+# Train LDA model
+tfm_topics = LdaModel(corpus=tfm_corpus, id2word=tfm_dictionary, num_topics=3, random_state=42, passes=10, iterations=50)
+
+# Display topics
+print("Topic Modeling for tfm_cleaned:")
+for idx, topic in tfm_topics.print_topics(-1):
+    print(f"Topic: {idx} \nWords: {topic}\n")
+```
+
+**Table 4.4.1:** *Topic Modeling for "tfm_cleaned"*
+
+| Topic | tfm_cleaned": Top Words (Word Weights)                       |
+|-------|--------------------------------------------------------------|
+| 0     | deer (0.714), eat (0.218), meat (0.034), alternative (0.033) |
+| 1     | eat (0.423), alternative (0.304), meat (0.252), deer (0.020) |
+| 2     | meat (0.762), deer (0.154), eat (0.042), alternative (0.042) |
+
+In the output, there are three topics and for each topic, there is a list of words along with their corresponding probabilities of occurrence within that topic. 
+
+- **Topic 0:** This topic revolves around deer meat consumption. The most prominent words associated with this topic are "deer," "eat," "meat," and "alternative," suggesting discussions about alternative options to deer meat.
+
+- **Topic 1:** This topic focuses on the broader idea of consuming alternative meat products. The prominent words include "eat," "alternative," "meat," and "deer," with a notable emphasis on alternative meat sources.
+
+- **Topic 2:** This topic primarily centered on meat consumption, with a strong emphasis on the word "meat." The presence of "deer" and "eat" suggests discussions related to consuming deer meat and possibly exploring alternative options.
+
+Overall, these topics reflect different aspects of discussions about the consumption of meat, including discussions about alternative meat sources and possibly deer meat specifically.
+
+### Clustering Classification for "tfm_cleaned"
+
+```{python}
+#| label: define number of clusters for tfm_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Initialize TfidfVectorizer with ngram_range for single words, bigrams, and trigrams
+tfm_vectorizer = TfidfVectorizer(ngram_range=(1, 3), max_features=5)
+
+# Fit and transform the entire preprocessed text data into TF-IDF model
+tfm_matrix = tfm_vectorizer.fit_transform(tfm_cleaned['comment_cleaned'])
+
+# Define the number of clusters
+tfm_num_clusters = 6
+
+# Initialize KMeans with the desired number of clusters
+kmeans = KMeans(n_clusters=tfm_num_clusters, random_state=42)
+
+# Fit KMeans on the TF-IDF data
+kmeans.fit(tfm_matrix)
+
+# Predict the cluster labels for each document
+tfm_clusters = kmeans.labels_
+
+# Add cluster labels to your DataFrame
+tfm_cleaned['tfm_cluster'] = tfm_clusters
+
+# Print texts belonging to a specific cluster
+#for i in range(tfm_num_clusters):
+    #print(f"Cluster {i} texts:")
+    #print(tfm_cleaned[tfm_cleaned['tfm_cluster'] == i]['comment_cleaned'].head())
+    #print("\n")
+```
+
+```{python}
+#| label: elbow method for tfm_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+plt.figure(figsize=(20, 8))  # Set a larger figure size for two subplots
+
+# Calculate WCSS for TFIDF
+wcss_tfidf = []
+for i in range(1, 11):
+    kmeans = KMeans(n_clusters=i, init='k-means++', max_iter=300, n_init=10, random_state=42)
+    kmeans.fit(tfm_matrix)
+    wcss_tfidf.append(kmeans.inertia_)
+
+# Plot the elbow curve for TFIDF
+plt.plot(range(1, 11), wcss_tfidf, marker='o', color='blue', label='TF-IDF')
+
+# Add labels and title
+plt.title('The Elbow Method (TF-IDF) for Comments of tfm_cleaned dataframe')
+plt.xlabel('Number of Clusters')
+plt.ylabel('Within-Cluster Sum of Squares (WCSS)')
+plt.legend()
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: silhouette score for tfm_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Calculate silhouette score
+tfm_score = silhouette_score(tfm_matrix, tfm_clusters)
+print(f"Silhouette Score (TFIDF): {tfm_score}")
+```
+
+```{python}
+#| label: wordcloud for tfm_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Combine all text in each cluster into a single string
+tfm_clusters = ["".join(tfm_cleaned[tfm_cleaned['tfm_cluster'] == i]['comment_cleaned']) for i in range(tfm_num_clusters)]
+
+# Generate word clouds for each cluster
+plt.figure(figsize=(15, 8))
+for i in range(tfm_num_clusters):
+    # Check if the cluster has any words
+    if tfm_clusters[i]:
+        wordcloud = WordCloud(width=800, height=400, background_color='white', colormap='magma').generate(tfm_clusters[i])
+        plt.subplot(3, 3, i+1)  # Adjust subplot parameters as per your number of clusters
+        plt.imshow(wordcloud, interpolation='bilinear')
+        plt.title(f'Cluster {i} Word Cloud (TFIDF)')
+        plt.axis('off')
+    else:
+        print(f"Cluster {i} has no words.")
+
+# Add overall title for the entire plot
+plt.suptitle("Word Cloud for tfm_cleaned", fontsize=16)
+plt.show()
+```
+
+```{python}
+#| label: keywords for tfm_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Tokenize and preprocess texts in each cluster
+tfm_cluster_texts = [tfm_cleaned[tfm_cleaned['tfm_cluster'] == i]['comment_cleaned'] for i in range(tfm_num_clusters)]
+tfm_cluster_keywords = []
+
+for texts in tfm_cluster_texts:
+    # Concatenate all texts in the cluster
+    cluster_text = ' '.join(texts)
+    # Tokenize and preprocess the concatenated text
+    cluster_tokens = preprocess(cluster_text)
+    # Extract unigrams, bigrams, and trigrams
+    n = 3  # You can adjust this value to get n-grams of different lengths
+    tfm_cluster_ngrams = list(ngrams(cluster_tokens, n))
+    # Count n-gram frequencies
+    ngram_freq = Counter(tfm_cluster_ngrams)
+    # Select top keywords (you can adjust the number of keywords as needed)
+    top_keywords = ngram_freq.most_common(5)  # Select top 10 n-grams
+    # Append selected keywords to the cluster_keywords list
+    tfm_cluster_keywords.append([keyword for keyword, _ in top_keywords])
+
+# Create cluster summaries based on selected keywords
+tfm_cluster_summaries = []
+for i, keywords_list in enumerate(tfm_cluster_keywords):
+    # Extract only the n-grams from each tuple in keywords_list
+    keywords = [' '.join(keyword) for keyword in keywords_list]
+    tfm_summary = f"Cluster {i} Summary: Individuals in this cluster value {', '.join(keywords)}."
+    tfm_cluster_summaries.append(tfm_summary)
+
+# Print cluster summaries
+for tfm_summary in tfm_cluster_summaries:
+    print(tfm_summary)
+```
+
+**Figure 4.4.2:** *Word Clouds for "tfm_cleaned"*
+
+![Figure 4.4.2: Word Clouds for "tfm_cleaned"](Photos/wordcloud_tfm.png)
+
+**Table 4.4.2A:** *Keyword Summary for "tfm_cleaned"*
+
+| Cluster | Summary                                                 |
+|---------|---------------------------------------------------------|
+| 0       | wrong tho self, tho self hunt, self hunt steak, hunt steak want, steak want know.                   |
+| 1       | hey post fit, post fit upvote, fit upvote downvote, upvote downvote post, downvote post break.                     |
+| 2       | ingredient deer ooooh, deer ooooh boy, ooooh boy wait, boy wait till, wait till middle.            |
+| 3       | god forbid people, forbid people eat, people eat want, eat want let, want let alternative.            |
+| 4       | autistic people thing, people thing texture, thing texture actually, texture actually stop, actually stop eat.     |
+| 5       | meat make stomach, make stomach hurt, stomach hurt badly, hurt badly nauseous, badly nauseous vegetarian.       |
+
+Based on the provided summaries of each cluster, it seems that each cluster represents a distinct theme or topic of discussion among individuals. 
+
+- **Cluster 0:** This group appears to value self-hunting and discussing aspects related to hunting, particularly hunting for steak. The prominent keywords suggest a focus on personal experiences and interests related to hunting.
+
+- **Cluster 1:** This cluster centers on discussions about posting content, particularly posts related to fitness. The keywords indicate interactions such as upvoting and downvoting posts, suggesting engagement with fitness-related content on the platform.
+
+- **Cluster 2:** Individuals in this cluster seem to discuss ingredients related to deer, expressing curiosity or interest in deer-related topics. The keywords suggest discussions about the qualities or characteristics of deer meat.
+
+- **Cluster 3:**  This cluster appears to center around discussions related to dietary choices and alternatives to meat consumption. The keywords indicate a concern for allowing people the freedom to choose their dietary preferences, including exploring alternative options to meat.
+
+- **Cluster 4:** This cluster addresses issues related to texture sensitivity, particularly in relation to autistic individuals. The keywords suggest discussions about how texture impacts food choices and potentially dietary restrictions.
+
+- **Cluster 5:** This group focuses on the physical effects of meat consumption, particularly on stomach health. The keywords suggest discussions about experiencing discomfort or nausea after consuming meat, possibly leading to considerations of vegetarianism.
+
+Overall, the clustering results provide insights into the diverse discussions and interests present within the tfm_cleaned dataset, highlighting the various topics and themes that individuals engage with on the platform.
+
+**Table 4.4.2B:** *Cluster Summary for tfm_cleaned*
+
+| Cluster | Description: Cluster Summary for tfm_cleaned                                                                                                              |
+|---------|----------------------------------------------------------------------------------------------------------------------|
+| 0       | Discussions on Self-hunting and discussions on hunting for steak, reflecting personal experiences and interests in hunting. |
+| 1       | Interactions related to posting fitness content, indicating engagement with fitness-related topics.                                    |
+| 2       | Curiosity and interest in deer-related topics, particularly deer meat, and discussions about its qualities or characteristics.                 |
+| 3       | Concern for dietary choices and alternatives to meat consumption, advocating for individuals' freedom to choose their dietary preferences.  |
+| 4       | Discussions on texture sensitivity, particularly in relation to autistic individuals, and its impact on food choices.                            |
+| 5       | Focus on the physical effects of meat consumption, particularly on stomach health, and considerations of vegetarianism.         |
+
+Each cluster appears to capture a different aspect of the discourse surrounding dietary choices, ranging from philosophical debates to practical considerations and ethical concerns.
+
+```{python}
+#| label: cluster summary for tfm_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Count the number of data points in each cluster
+tfm_cluster_counts = tfm_cleaned['tfm_cluster'].value_counts()
+
+# Define custom colors for the pie chart
+red_custom_colors = plt.cm.Reds(np.linspace(0.2, 1, 10))
+# Define custom colors for the bar chart
+darkred_custom_color = ['darkred' for _ in range(len(tfm_cluster_counts))]
+
+# Create a 1x2 subplot layout
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+
+# Create a pie chart in the first subplot
+axes[0].pie(tfm_cluster_counts.values, labels=tfm_cluster_counts.index, autopct='%1.1f%%', startangle=140, colors=red_custom_colors)
+axes[0].set_title('Proportion of Data Points in Clusters\nof Comments in tfm_cleaned Dataframe')
+axes[0].axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+# Create a bar plot in the second subplot
+bars = axes[1].bar(tfm_cluster_counts.index, tfm_cluster_counts.values, color=darkred_custom_color)
+axes[1].set_xlabel('Cluster')
+axes[1].set_ylabel('Number of Data Points')
+axes[1].set_title('Distribution of Data Points in Clusters\nof Comments in tfm_cleaned Dataframe')
+
+# Add count and percentage labels on the bar plot
+for bar in bars:
+    yval = bar.get_height()
+    axes[1].text(bar.get_x() + bar.get_width()/2, yval, f'{yval}', ha='center', va='bottom')
+    #percent = f'{100 * yval / len(db):.1f}%'
+    #axes[1].text(bar.get_x() + bar.get_width()/2, yval, f'({percent})', ha='center', va='top', color='white')
+
+# Adjust the layout so there's no overlap
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.4.2C: Cluster Distribution for "tfm_cleaned"](Photos/cluster_tfm.png)
+
+The visualization illustrates the proportional distribution of comments across six defined clusters, each representing a distinct discussion theme. Cluster 1 is the most predominant with 42.9% of the comments, highlighting a significant interaction on posting fitness content, indicating engagement with fitness-related topics. Other clusters discuss themes from hunting for steak, deer-related topics with its quality and texture, meat alternatives with freedom of dietary choices, texture sensitivity to autistic people, and the physical effects of meat consumption. The analysis of these clusters provides insights into the diverse perspectives and conversations on dietary choices within the online community from which the data was collected.
+
+### Sentiment Analysis for "tfm_cleaned"
+
+```{python}
+#| label: average sentiment for tfm_cleaned dataframe
+#| echo: false
+
+tfm_cleaned['tfm_sentiment'] = tfm_cleaned['comment_cleaned'].apply(analyze_sentiment)
+
+# Calculate average sentiment score for Pros_cleaned and Cons_cleaned in both datasets
+average_tfm_sentiment = tfm_cleaned['tfm_sentiment'].mean()
+
+print("Average Sentiment (comment_cleaned) for tfm_cleaned Dataframe:", average_tfm_sentiment)
+```
+
+```{python}
+#| label: distribution of sentiment scores for tfm_cleaned dataframe
+#| echo: false
+#| include: false
+#| eval: false
+
+plt.figure(figsize=(10, 5)) 
+
+# Visualize the distribution of sentiment scores for tfm_cleaned dataframe
+plt.hist(tfm_cleaned['tfm_sentiment'], color='darkred', label='tfm')
+plt.title('Distribution of Sentiment Scores for tfm_cleaned)')
+plt.xlabel('Sentiment Score')
+plt.ylabel('Frequency')
+plt.legend(loc='upper right')
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.4.3A: Sentiment Distribution for "tfm_cleaned"](Photos/sendis_tfm.png)
+
+The histogram shows sentiment scores for the "tfm_cleaned" DataFrame. The sentiment is predominantly neutral, with the peak centered around zero. Despite the neutral average, there is a full range of sentiments present, from strongly negative to strongly positive. The overall average sentiment score is slightly negative at around -0.01108, indicating a subtle lean toward negative sentiment across the comments.
+
+```{python}
+#| label: sentiment label counts for tfm_cleaned dataframe
+#| echo: false
+#| include: false
+#| eval: false
+
+tfm_cleaned['tfm_sentiment_label'] = tfm_cleaned['comment_cleaned'].apply(sentiment_label)
+
+# Count the number of data points in each cluster
+tfm_sentiment = tfm_cleaned['tfm_sentiment_label'].value_counts()
+
+# Define custom colors for the bar chart
+sentiment_custom_colors = {
+    'positive': 'green',
+    'negative': 'firebrick'
+}
+
+plt.figure(figsize=(12, 8))
+
+# Plot the distribution of sentiment
+tfm_sentiment.plot(kind='bar', color=[sentiment_custom_colors[label] for label in tfm_sentiment.index])
+plt.title('Distribution of People Sentiment (tfm_cleaned) about this topic')
+plt.xlabel('Sentiment')
+plt.ylabel('Count')
+plt.tick_params(axis='x', rotation=360)  # Rotate x-axis labels by 360 degrees
+
+# Add count and percentage labels on the bar plot
+for index, value in enumerate(tfm_sentiment.values):
+    plt.text(index, value, f'{value}\n({value/sum(tfm_sentiment.values)*100:.1f}%)', ha='center', va='bottom')
+
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.4.3B: Sentiment Label Counts for "tfm_cleaned"](Photos/sencount_tfm.png)
+
+The bar graph depicts sentiment analysis of comments from the "tfm_cleaned" dataset, with sentiments categorized as negative and positive. Negative sentiments account for the highest proportion at 60.7% and positive sentiments are significantly less at 39.3%. The distribution suggests a prevailing trend of pessimistic views among participants engaging with the subject matter. 
+
+## The "tfm2_cleaned" Dataframe
+
+### Topic Modeling for "tfm2_cleaned"
+```{python}
+#| label: topic modeling for tfm2_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Combine the preprocessed text into lists
+tfm2_text = [preprocess(review) for review in tfm2_cleaned['comment_cleaned'].dropna()]
+
+# Create a Gensim dictionary from the text
+tfm2_dictionary = Dictionary(tfm2_text)
+
+# Filter out extremes to limit the number of features
+tfm2_dictionary.filter_extremes(no_below=5, no_above=0.5)
+
+# Convert the dictionary to a bag of words corpus
+tfm2_corpus = [tfm2_dictionary.doc2bow(text) for text in tfm2_text]
+
+# Train LDA model
+tfm2_topics = LdaModel(corpus=tfm2_corpus, id2word=tfm2_dictionary, num_topics=3, random_state=42, passes=10, iterations=50)
+
+# Display topics
+print("Topic Modeling for tfm2_cleaned:")
+for idx, topic in tfm2_topics.print_topics(-1):
+    print(f"Topic: {idx} \nWords: {topic}\n")
+```
+
+**Table 4.5.1:** *Topic Modeling for "tfm2_cleaned"*
+
+| Topic | "tfm2_cleaned": Top Words (Word Weights)                                               |
+|-------|-------------------------------------------------------------------------|
+| 0     | eat (0.078), vegan (0.061), meat (0.052), people (0.035), diet (0.032), go (0.030), need (0.030), meme (0.029), vitamin (0.028), care (0.022) |
+| 1     | vegan (0.137), animal (0.055), people (0.035), dog (0.033), iggy (0.031), food (0.030), think (0.027), find (0.024), diet (0.024), point (0.024) |
+| 2     | like (0.087), look (0.086), iggy (0.059), vegan (0.041), year (0.040), feel (0.032), yeah (0.027), pretty (0.025), right (0.025), shit (0.023) |
+
+In the output, there are three topics and for each topic, there is a list of words along with their corresponding probabilities of occurrence within that topic. 
+
+- **Topic 0:** This topic seems to focus on discussions related to dietary choices and health considerations. Words like "eat", "vegan", "meat", "diet", and "vitamin" suggest conversations about the nutritional aspects of vegan and meat-based diets, including the importance of certain vitamins, and the care needed to maintain a balanced diet.
+
+- **Topic 1:** This topic revolves around discussions specifically about veganism, animal welfare, and food choices. Keywords like "vegan," "animal," and "food" indicate conversations about vegan diets and the ethical considerations of consuming animal products.
+
+- **Topic 2:** This topic appears to focus on personal experiences related to veganism, including how individuals perceive the lifestyle, how it looks, and how it feels. Words like "like," "look," "iggy," "year," and "feel" suggest discussions about the appearance of vegan food, personal perception with veganism, and expressions of opinions or feelings regarding vegan lifestyle choices.
+
+Overall, these topics cover a range of discussions about veganism, including health considerations, ethical concerns, and personal experiences related to dietary choices and lifestyle.
+
+### Clustering Classification for "tfm2_cleaned"
+```{python}
+#| label: define number of clusters for tfm2_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Initialize TfidfVectorizer with ngram_range for single words, bigrams, and trigrams
+tfm2_vectorizer = TfidfVectorizer(ngram_range=(1, 3), max_features=5)
+
+# Fit and transform the entire preprocessed text data into TF-IDF model
+tfm2_matrix = tfm2_vectorizer.fit_transform(tfm2_cleaned['comment_cleaned'])
+
+# Define the number of clusters
+tfm2_num_clusters = 6
+
+# Initialize KMeans with the desired number of clusters
+kmeans = KMeans(n_clusters=tfm2_num_clusters, random_state=42)
+
+# Fit KMeans on the TF-IDF data
+kmeans.fit(tfm2_matrix)
+
+# Predict the cluster labels for each document
+tfm2_clusters = kmeans.labels_
+
+# Add cluster labels to your DataFrame
+tfm2_cleaned['tfm2_cluster'] = tfm2_clusters
+
+# Print texts belonging to a specific cluster
+#for i in range(tfm2_num_clusters):
+    #print(f"Cluster {i} texts:")
+    #print(tfm2_cleaned[tfm2_cleaned['tfm2_cluster'] == i]['comment_cleaned'].head())
+    #print("\n")
+```
+
+```{python}
+#| label: elbow method for tfm2_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+plt.figure(figsize=(20, 8))  # Set a larger figure size for two subplots
+
+# Calculate WCSS for TFIDF
+wcss_tfidf = []
+for i in range(1, 11):
+    kmeans = KMeans(n_clusters=i, init='k-means++', max_iter=300, n_init=10, random_state=42)
+    kmeans.fit(tfm2_matrix)
+    wcss_tfidf.append(kmeans.inertia_)
+
+# Plot the elbow curve for TFIDF
+plt.plot(range(1, 11), wcss_tfidf, marker='o', color='blue', label='TF-IDF')
+
+# Add labels and title
+plt.title('The Elbow Method (TF-IDF) for Comments of tfm2_cleaned dataframe')
+plt.xlabel('Number of Clusters')
+plt.ylabel('Within-Cluster Sum of Squares (WCSS)')
+plt.legend()
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: silhouette score for tfm2_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Calculate silhouette score
+tfm2_score = silhouette_score(tfm2_matrix, tfm2_clusters)
+print(f"Silhouette Score (TFIDF): {tfm2_score}")
+```
+
+```{python}
+#| label: wordclouds for tfm2_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Combine all text in each cluster into a single string
+tfm2_clusters = ["".join(tfm2_cleaned[tfm2_cleaned['tfm2_cluster'] == i]['comment_cleaned']) for i in range(tfm2_num_clusters)]
+
+# Generate word clouds for each cluster
+plt.figure(figsize=(15, 8))
+for i in range(tfm2_num_clusters):
+    # Check if the cluster has any words
+    if tfm2_clusters[i]:
+        wordcloud = WordCloud(width=800, height=400, background_color='white', colormap='magma').generate(tfm2_clusters[i])
+        plt.subplot(3, 3, i+1)  # Adjust subplot parameters as per your number of clusters
+        plt.imshow(wordcloud, interpolation='bilinear')
+        plt.title(f'Cluster {i} Word Cloud (TFIDF)')
+        plt.axis('off')
+    else:
+        print(f"Cluster {i} has no words.")
+
+# Add overall title for the entire plot
+plt.suptitle("Word Cloud for tfm2_cleaned", fontsize=16)
+plt.show()
+```
+
+```{python}
+#| label: keywords for tfm2_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Tokenize and preprocess texts in each cluster
+tfm2_cluster_texts = [tfm2_cleaned[tfm2_cleaned['tfm2_cluster'] == i]['comment_cleaned'] for i in range(tfm2_num_clusters)]
+tfm2_cluster_keywords = []
+
+for texts in tfm2_cluster_texts:
+    # Concatenate all texts in the cluster
+    cluster_text = ' '.join(texts)
+    # Tokenize and preprocess the concatenated text
+    cluster_tokens = preprocess(cluster_text)
+    # Extract unigrams, bigrams, and trigrams
+    n = 3  # You can adjust this value to get n-grams of different lengths
+    tfm2_cluster_ngrams = list(ngrams(cluster_tokens, n))
+    # Count n-gram frequencies
+    ngram_freq = Counter(tfm2_cluster_ngrams)
+    # Select top keywords (you can adjust the number of keywords as needed)
+    top_keywords = ngram_freq.most_common(5)  # Select top 10 n-grams
+    # Append selected keywords to the cluster_keywords list
+    tfm2_cluster_keywords.append([keyword for keyword, _ in top_keywords])
+
+# Create cluster summaries based on selected keywords
+tfm2_cluster_summaries = []
+for i, keywords_list in enumerate(tfm2_cluster_keywords):
+    # Extract only the n-grams from each tuple in keywords_list
+    keywords = [' '.join(keyword) for keyword in keywords_list]
+    tfm2_summary = f"Cluster {i} Summary: Individuals in this cluster value {', '.join(keywords)}."
+    tfm2_cluster_summaries.append(tfm2_summary)
+
+# Print cluster summaries
+for tfm2_summary in tfm2_cluster_summaries:
+    print(tfm2_summary)
+```
+
+**Figure 4.5.2:** *Word Clouds for "tfm2_cleaned"*
+
+![Figure 4.5.2: Word Clouds for "tfm2_cleaned"](Photos/wordcloud_tfm2.png)
+
+**Table 4.5.2A:** *Keyword Summary for "tfm2_cleaned"*
+
+| Cluster | Summary                                                 |
+|---------|---------------------------------------------------------|
+| 0       | easy people think, veganism actually good, actually good specie, good specie need, specie need certain.                 |
+| 1       | lana del rey, literally site farm, site farm farmer, farm farmer talk, plant base diet.                    |
+| 2       | leave right wrong, right wrong feel, wrong feel bad, feel bad come, bad come hope.         |
+| 3       | acquaintance try dog, try dog vegan, vegan year feel, feel great vegan, great vegan year.         |
+| 4       | look amazing crybaby, amazing crybaby pic, crybaby pic look, pic look like, look like aged.    |
+| 5       | stop care people, care people eat, people eat literally, eat literally begin, literally begin affect.      |
+
+Based on the provided summaries of each cluster, it seems that each cluster represents a distinct theme or topic of discussion among individuals. 
+
+- **Cluster 0:** Individuals in this cluster seem to value discussions about the perception of veganism as beneficial for certain species. They discuss the idea that veganism is good for specific species and may require certain considerations.
+
+- **Cluster 1:** This cluster focuses on discussions related to veganism, animal agriculture, and farming practices. Additionally, there are mentions of plant-based diets within these discussions.
+
+- **Cluster 2:** Individuals in this cluster appear to discuss topics related to moral judgment, feelings of right or wrong and their emotional impact. There are expressions of hope and introspective reflections on ethical considerations.
+
+- **Cluster 3:** This cluster revolves around sahring personal experiences on veganism, with individuals discussing their transition to a vegan lifestyle and expressing positive feelings about their vegan journey over the years.
+
+- **Cluster 4:** Discussions in this cluster seem to focus on the appearance of individuals in images, particularly related to aging and veganism.
+
+- **Cluster 5:** Individuals in this cluster appear to discuss societal attitudes towards veganism, emphasizing the need for empathy and understanding. They also express concerns about the dietary choices of others and how those choices may impact both individuals and society. There is a sense of frustration or disappointment expressed towards those who do not align with their dietary beliefs.
+
+**Table 4.5.2B:** *Cluster Summary for tfm2_cleaned*
+
+| Cluster | Description: Cluster Summary for tfm2_cleaned                                                                                                         |
+|---------|------------------------------------------------------------------------------------------------------------------|
+| 0       | Discussions on the perception of veganism as beneficial for specific species and considerations for veganism.    |
+| 1       | Focus on discussions related to veganism, animal agriculture, farming practices, and plant-based diets.          |
+| 2       | Topics centering on moral judgment, feelings of right or wrong, and emotional reflections on ethical considerations. |
+| 3       | Personal experiences and positive feelings about transitioning to a vegan lifestyle and journey over the years.  |
+| 4       | Discussions on the appearance of individuals in images, particularly related to aging and veganism.               |
+| 5       | Societal attitudes towards veganism, empathy, concerns about others' dietary choices, and frustration expressed. |
+
+Overall, the clusters cover a range of topics related to veganism, ethics, personal experiences, visual perceptions, and dietary concerns. Discussions include perceptions of veganism's benefits for certain species, conversations about farming practices, moral reflections on right and wrong, personal journeys with veganism, visual observations, and concerns about the dietary choices of others. These clusters reflect diverse perspectives and conversations within the context of veganism and its associated themes.
+
+```{python}
+#| label: cluster summary for tfm2_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Count the number of data points in each cluster
+tfm2_cluster_counts = tfm2_cleaned['tfm2_cluster'].value_counts()
+
+# Define custom colors for the pie chart
+red_custom_colors = plt.cm.Reds(np.linspace(0.2, 1, 10))
+# Define custom colors for the bar chart
+firebrick_custom_color = ['firebrick' for _ in range(len(tfm2_cluster_counts))]
+
+# Create a 1x2 subplot layout
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+
+# Create a pie chart in the first subplot
+axes[0].pie(tfm2_cluster_counts.values, labels=tfm2_cluster_counts.index, autopct='%1.1f%%', startangle=140, colors=red_custom_colors)
+axes[0].set_title('Proportion of Data Points in Clusters\nof Comments in tfm2_cleaned Dataframe')
+axes[0].axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+# Create a bar plot in the second subplot
+bars = axes[1].bar(tfm2_cluster_counts.index, tfm2_cluster_counts.values, color=firebrick_custom_color)
+axes[1].set_xlabel('Cluster')
+axes[1].set_ylabel('Number of Data Points')
+axes[1].set_title('Distribution of Data Points in Clusters\nof Comments in tfm2_cleaned Dataframe')
+
+# Add count and percentage labels on the bar plot
+for bar in bars:
+    yval = bar.get_height()
+    axes[1].text(bar.get_x() + bar.get_width()/2, yval, f'{yval}', ha='center', va='bottom')
+    #percent = f'{100 * yval / len(db):.1f}%'
+    #axes[1].text(bar.get_x() + bar.get_width()/2, yval, f'({percent})', ha='center', va='top', color='white')
+
+# Adjust the layout so there's no overlap
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.5.2C: Cluster Distribution for "tfm2_cleaned"](Photos/cluster_tfm2.png)
+
+The visualizations illustrate the distribution of comments from the "tfm2_cleaned" DataFrame across six clusters. Cluster 1, representing a variety of discussions related to veganism, including debates on farming practices, has the most comments, making up over half of the dataset with approximately 51.9%. Each cluster reflects a facet of the complex conversations surrounding veganism, encompassing both support and criticism.
+
+### Sentiment Analysis for "tfm2_cleaned"
+
+```{python}
+#| label: average sentiment for tfm2_cleaned
+#| echo: false
+
+tfm2_cleaned['tfm2_sentiment'] = tfm2_cleaned['comment_cleaned'].apply(analyze_sentiment)
+
+# Calculate average sentiment score for tfm2_cleaned dataframe
+average_tfm2_sentiment = tfm2_cleaned['tfm2_sentiment'].mean()
+
+print("Average Sentiment (comment_cleaned) for tfm2_cleaned Dataframe:", average_tfm2_sentiment)
+```
+
+```{python}
+#| label: distribution of sentiment scores for tfm2_cleaned dataframe
+#| echo: false
+#| include: false
+#| eval: false
+
+plt.figure(figsize=(10, 5)) 
+
+# Visualize the distribution of sentiment scores for tfm2_cleaned dataframe
+plt.hist(tfm2_cleaned['tfm2_sentiment'], color='firebrick', label='tfm2')
+plt.title('Distribution of Sentiment Scores for tfm2_cleaned)')
+plt.xlabel('Sentiment Score')
+plt.ylabel('Frequency')
+plt.legend(loc='upper right')
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.5.3A: Sentiment Distribution for "tfm2_cleaned"](Photos/sendis_tfm2.png)
+
+The histogram depicts the distribution of sentiment scores for comments in the "tfm2_cleaned" DataFrame. The data shows a concentration of scores around the center, with the highest frequency near the neutral sentiment score of zero. However, the average sentiment score is slightly positive at approximately 0.049, indicating a generally positive outlook among the comments, despite the presence of both negative and positive sentiments.
+
+```{python}
+#| label: sentiment label counts for tfm2_cleaned dataframe
+#| echo: false
+#| include: false
+#| eval: false
+
+tfm2_cleaned['tfm2_sentiment_label'] = tfm2_cleaned['comment_cleaned'].apply(sentiment_label)
+
+# Count the number of data points in each cluster
+tfm2_sentiment = tfm2_cleaned['tfm2_sentiment_label'].value_counts()
+
+# Define custom colors for the bar chart
+sentiment_custom_colors = {
+    'positive': 'green',
+    'negative': 'firebrick'
+}
+
+plt.figure(figsize=(12, 8))
+
+# Plot the distribution of sentiment
+tfm2_sentiment.plot(kind='bar', color=[sentiment_custom_colors[label] for label in tfm2_sentiment.index])
+plt.title('Distribution of People Sentiment (tfm2_cleaned) about this topic')
+plt.xlabel('Sentiment')
+plt.ylabel('Count')
+plt.tick_params(axis='x', rotation=360)  # Rotate x-axis labels by 360 degrees
+
+# Add count and percentage labels on the bar plot
+for index, value in enumerate(tfm2_sentiment.values):
+    plt.text(index, value, f'{value}\n({value/sum(tfm2_sentiment.values)*100:.1f}%)', ha='center', va='bottom')
+
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.5.3B: Sentiment Label Counts for "tfm2_cleaned"](Photos/sencount_tfm2.png)
+
+The bar graph represents sentiment analysis of comments from the "tfm2_cleaned" dataset, showing the number of comments that have positive and negative sentiments. Positive sentiment is the most common at 39.9%, closely followed by negative sentiment at 31.8%, and neutral sentiment at 28.2%. The sentiments are fairly distributed, with a slightly larger share of comments being positive.
+
+## The "tupo_cleaned" Dataframe
+
+### Topic Modeling for "tupo_cleaned"
+```{python}
+#| label: topic modeling for tupo_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Combine the preprocessed text into lists
+tupo_text = [preprocess(review) for review in tupo_cleaned['comment_cleaned'].dropna()]
+
+# Create a Gensim dictionary from the text
+tupo_dictionary = Dictionary(tupo_text)
+
+# Filter out extremes to limit the number of features
+tupo_dictionary.filter_extremes(no_below=5, no_above=0.5)
+
+# Convert the dictionary to a bag of words corpus
+tupo_corpus = [tupo_dictionary.doc2bow(text) for text in tupo_text]
+
+# Train LDA model
+tupo_topics = LdaModel(corpus=tupo_corpus, id2word=tupo_dictionary, num_topics=3, random_state=42, passes=10, iterations=50)
+
+# Display topics
+print("Topic Modeling for tupo_cleaned:")
+for idx, topic in tupo_topics.print_topics(-1):
+    print(f"Topic: {idx} \nWords: {topic}\n")
+```
+
+**Table 4.6.1:** *Topic Modeling for "tupo_cleaned"*
+
+| Topic | "tupo_cleaned": Top Words (Word Weights)                                               |
+|-------|-------------------------------------------------------------------------|
+| 0     | vegan (0.057), eat (0.052), meat (0.026), food (0.022), animal (0.019), people (0.016), diet (0.015), like (0.015), supplement (0.014), healthy (0.014) |
+| 1     | vegan (0.072), diet (0.046), healthy (0.029), people (0.025), animal (0.018), veganism (0.017), unhealthy (0.016), eat (0.013), meat (0.013), know (0.013) |
+| 2     | food (0.015), nutritionist (0.014), yes (0.013), healthy (0.013), like (0.013), nutrient (0.012), question (0.012), people (0.012), say (0.011), diet (0.011) |
+
+
+In the output, there are three topics and for each topic, there is a list of words along with their corresponding probabilities of occurrence within that topic. 
+
+- **Topic 0:** This topic seems to focus on discussions about dietary habits, particularly related to veganism. Words like "vegan", "eat", "meat", and "food" suggest conversations about food choices, with a focus on plant-based diets and the consumption of meat substitutes. Terms like "healthy", and "supplement" indicate discussions about the importance of supplements for maintaining health.
+
+- **Topic 1:** This topic revolves around discussions specifically about vegan diets and their perceived health implications. Words like "vegan", "diet", "healthy", "unhealthy", and "meat" indicate conversations about the healthiness of vegan diets, potential nutritional deficiencies, and comparisons with meat-based diets. This topic also includes terms like "people" and "know," suggesting discussions about public perceptions and awareness of veganism.
+
+- **Topic 2:** This topic appears to focus on discussions about nutrition and healthy eating habits. Terms like "nutritionist," "food," "nutrient," and "healthy" indicate conversations about nutritional advice, dietary choices, and health-related topics. This topic also includes terms like "like" and "question," suggesting discussions about personal preferences and inquiries about dietary practices.
+
+Overall, these topics cover a range of discussions about veganism, dietary habits, and nutrition, with a focus on health considerations and dietary choices.
+
+### Clustering Classification for "tupo_cleaned"
+
+```{python}
+#| label: define number of clusters for tupo_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Initialize TfidfVectorizer with ngram_range for single words, bigrams, and trigrams
+tupo_vectorizer = TfidfVectorizer(ngram_range=(1, 3), max_features=5)
+
+# Fit and transform the entire preprocessed text data into TF-IDF model
+tupo_matrix = tupo_vectorizer.fit_transform(tupo_cleaned['comment_cleaned'])
+
+# Define the number of clusters
+tupo_num_clusters = 6
+
+# Initialize KMeans with the desired number of clusters
+kmeans = KMeans(n_clusters=tupo_num_clusters, random_state=42)
+
+# Fit KMeans on the TF-IDF data
+kmeans.fit(tupo_matrix)
+
+# Predict the cluster labels for each document
+tupo_clusters = kmeans.labels_
+
+# Add cluster labels to your DataFrame
+tupo_cleaned['tupo_cluster'] = tupo_clusters
+
+# Print texts belonging to a specific cluster
+#for i in range(tupo_num_clusters):
+    #print(f"Cluster {i} texts:")
+    #print(tupo_cleaned[tupo_cleaned['tupo_cluster'] == i]['comment_cleaned'].head())
+    #print("\n")
+```
+
+```{python}
+#| label: elbow method for tupo_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+plt.figure(figsize=(20, 8))  # Set a larger figure size for two subplots
+
+# Calculate WCSS for TFIDF
+wcss_tfidf = []
+for i in range(1, 11):
+    kmeans = KMeans(n_clusters=i, init='k-means++', max_iter=300, n_init=10, random_state=42)
+    kmeans.fit(tupo_matrix)
+    wcss_tfidf.append(kmeans.inertia_)
+
+# Plot the elbow curve for TFIDF
+plt.plot(range(1, 11), wcss_tfidf, marker='o', color='blue', label='TF-IDF')
+
+# Add labels and title
+plt.title('The Elbow Method (TF-IDF) for Comments of tupo_cleaned dataframe')
+plt.xlabel('Number of Clusters')
+plt.ylabel('Within-Cluster Sum of Squares (WCSS)')
+plt.legend()
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: silhouette score for tupo_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Calculate silhouette score
+tupo_score = silhouette_score(tupo_matrix, tupo_clusters)
+print(f"Silhouette Score (TFIDF): {tupo_score}")
+```
+
+```{python}
+#| label: wordclouds for tupo_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Combine all text in each cluster into a single string
+tupo_clusters = ["".join(tupo_cleaned[tupo_cleaned['tupo_cluster'] == i]['comment_cleaned']) for i in range(tupo_num_clusters)]
+
+# Generate word clouds for each cluster
+plt.figure(figsize=(15, 8))
+for i in range(tupo_num_clusters):
+    # Check if the cluster has any words
+    if tupo_clusters[i]:
+        wordcloud = WordCloud(width=800, height=400, background_color='white', colormap='magma').generate(tupo_clusters[i])
+        plt.subplot(3, 3, i+1)  # Adjust subplot parameters as per your number of clusters
+        plt.imshow(wordcloud, interpolation='bilinear')
+        plt.title(f'Cluster {i} Word Cloud (TFIDF)')
+        plt.axis('off')
+    else:
+        print(f"Cluster {i} has no words.")
+
+# Add overall title for the entire plot
+plt.suptitle("Word Cloud for tupo_cleaned", fontsize=16)
+plt.show()
+```
+
+```{python}
+#| label: keywords for tupo_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Tokenize and preprocess texts in each cluster
+tupo_cluster_texts = [tupo_cleaned[tupo_cleaned['tupo_cluster'] == i]['comment_cleaned'] for i in range(tupo_num_clusters)]
+tupo_cluster_keywords = []
+
+for texts in tupo_cluster_texts:
+    # Concatenate all texts in the cluster
+    cluster_text = ' '.join(texts)
+    # Tokenize and preprocess the concatenated text
+    cluster_tokens = preprocess(cluster_text)
+    # Extract unigrams, bigrams, and trigrams
+    n = 3  # You can adjust this value to get n-grams of different lengths
+    tupo_cluster_ngrams = list(ngrams(cluster_tokens, n))
+    # Count n-gram frequencies
+    ngram_freq = Counter(tupo_cluster_ngrams)
+    # Select top keywords (you can adjust the number of keywords as needed)
+    top_keywords = ngram_freq.most_common(5)  # Select top 10 n-grams
+    # Append selected keywords to the cluster_keywords list
+    tupo_cluster_keywords.append([keyword for keyword, _ in top_keywords])
+
+# Create cluster summaries based on selected keywords
+tupo_cluster_summaries = []
+for i, keywords_list in enumerate(tupo_cluster_keywords):
+    # Extract only the n-grams from each tuple in keywords_list
+    keywords = [' '.join(keyword) for keyword in keywords_list]
+    tupo_summary = f"Cluster {i} Summary: Individuals in this cluster value {', '.join(keywords)}."
+    tupo_cluster_summaries.append(tupo_summary)
+
+# Print cluster summaries
+for tupo_summary in tupo_cluster_summaries:
+    print(tupo_summary)
+```
+
+**Figure 4.6.2:** *Word Clouds for "tupo_cleaned"*
+
+![Figure 4.6.2: Word Clouds for "tupo_cleaned"](Photos/wordcloud_tupo.png)
+
+**Table 4.6.2A:** *Keyword Summary for "tupo_cleaned"*
+
+| Cluster | Summary                                                 |
+|---------|---------------------------------------------------------|
+| 0       | live long healthy, veganism unhealthy veganism, unhealthy veganism hard, veganism hard healthy, hard healthy yes.       |
+| 1       | lot vegan replacement, vegan major health, major health concern, famous vegan athlete, vegan athlete dozen.                  |
+| 2       | contain important nutrient, important nutrient include, nutrient include vitamin, include vitamin folate, vitamin folate copper.        |
+| 3       | honestly know extent, hard vegan care, think morally fine, provide support evidence, vegan push belief.      |
+| 4       | plant base diet, diet generally unhealthy, balanced vegan diet, plan vegan diet, truly vegan diet.   |
+| 5       | eat animal product, eat meat dairy, eat unborn baby, nitrite gram bacon, glass orange juice.   |
+
+Based on the provided summaries of each cluster, it appears that each cluster represents a distinct topic or theme of discussion among individuals.
+
+- **Cluster 0:** Individuals in this cluster discuss the perception of veganism as a healthy lifestyle choice, but also express concerns about its potential drawbacks and challenges. There is a nuanced discussion about the balance between veganism and overall health.
+
+- **Cluster 1:** Discussion in this cluster centers on the nutritional aspects of vegan diets, particularly emphasizing the importance of various nutrients such as vitamins and minerals, and their presence in plant-based foods.
+
+- **Cluster 2:** This cluster focuses on the concept of a plant-based diet, with some individuals expressing concerns about the overall healthiness of such diets, while others advocate for a balanced vegan diet as a genuinely healthy option.
+
+- **Cluster 3:** Individuals in this cluster express their moral aspects of dietary choices, suggesting that veganism is morally acceptable. There is also mention of providing evidence to support these beliefs, and navigating online discussions by the actions they take, such as reporting inappropriate content.
+
+- **Cluster 4:** Individuals in this cluster revolves around concerns about vegan replacements for animal products and their major health concerns associated with veganism. They also mention famous vegan athletes and health concerns suggest a critical view of veganism's health implications.
+
+- **Cluster 5:** Topics in this cluster include the consumption of animal products, including meat, dairy, and unborn animals. There is a concern of specific food items such as the presence of nitrites in bacon.
+
+**Table 4.6.2B:** *Cluster Summary for tupo_cleaned*
+
+| Cluster | Description: Cluster Summary for tupo_cleaned                                                                                   |
+|---------|------------------------------------------------------------------------------------------------------------------|
+| 0       | Discussion on the perception of veganism as a healthy lifestyle choice, along with concerns and challenges.      |
+| 1       | Emphasis on the nutritional aspects of vegan diets, highlighting the importance of various nutrients.            |
+| 2       | Focus on the concept of a plant-based diet, with discussions on its overall healthiness and balance.             |
+| 3       | Expression of moral aspects of dietary choices, advocating for veganism as morally acceptable.                   |
+| 4       | Concerns about vegan replacements for animal products, health implications, and famous vegan athletes.           |
+| 5       | Topics include the consumption of animal products, with concerns about specific items like nitrites in bacon.    |
+
+These clusters represent different perspectives and concerns related to dietary choices, veganism, and health, reflecting the diversity of opinions within this topic.
+
+```{python}
+#| label: cluster summary for tupo_cleaned
+#| echo: false
+#| include: false
+#| eval: false
+
+# Count the number of data points in each cluster
+tupo_cluster_counts = tupo_cleaned['tupo_cluster'].value_counts()
+
+# Define custom colors for the pie chart
+red_custom_colors = plt.cm.Reds(np.linspace(0.2, 1, 10))
+# Define custom colors for the bar chart
+grey_custom_color = ['grey' for _ in range(len(tupo_cluster_counts))]
+
+# Create a 1x2 subplot layout
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+
+# Create a pie chart in the first subplot
+axes[0].pie(tupo_cluster_counts.values, labels=tupo_cluster_counts.index, autopct='%1.1f%%', startangle=140, colors=red_custom_colors)
+axes[0].set_title('Proportion of Data Points in Clusters\nof Comments in tupo_cleaned Dataframe')
+axes[0].axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+# Create a bar plot in the second subplot
+bars = axes[1].bar(tupo_cluster_counts.index, tupo_cluster_counts.values, color=grey_custom_color)
+axes[1].set_xlabel('Cluster')
+axes[1].set_ylabel('Number of Data Points')
+axes[1].set_title('Distribution of Data Points in Clusters\nof Comments in tupo_cleaned Dataframe')
+
+# Add count and percentage labels on the bar plot
+for bar in bars:
+    yval = bar.get_height()
+    axes[1].text(bar.get_x() + bar.get_width()/2, yval, f'{yval}', ha='center', va='bottom')
+    #percent = f'{100 * yval / len(db):.1f}%'
+    #axes[1].text(bar.get_x() + bar.get_width()/2, yval, f'({percent})', ha='center', va='top', color='white')
+
+# Adjust the layout so there's no overlap
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.6.2C: Cluster Distribution for "tupo_cleaned"](Photos/cluster_tupo.png)
+
+The visualizations present a clustered analysis of discussions from a "tupo_cleaned" dataset. The pie chart depicts the proportional representation of comments across six clusters, with Cluster 1 accounting for the largest share at 33.9%. This indicates that Cluster 1 is the most discussed topic within the dataset, highlighting the discussion of this post centers around the nutritional aspects of vegan diets, specifically the significance of essential nutrients like vitamins and minerals found in plant-based foods.
+
+### Sentiment Analysis for "tupo_cleaned"
+
+```{python}
+#| label: average sentiment for tupo_cleaned dataframe
+#| echo: false
+
+tupo_cleaned['tupo_sentiment'] = tupo_cleaned['comment_cleaned'].apply(analyze_sentiment)
+
+# Calculate average sentiment score for tupo_cleaned dataframe
+average_tupo_sentiment = tupo_cleaned['tupo_sentiment'].mean()
+
+print("Average Sentiment (comment_cleaned) for tupo_cleaned Dataframe:", average_tupo_sentiment)
+```
+
+```{python}
+#| label: distribution of sentiment scores for tupo_cleaned dataframe
+#| echo: false
+#| include: false
+#| eval: false
+
+plt.figure(figsize=(10, 5)) 
+
+# Visualize the distribution of sentiment scores for tupo_cleaned dataframe
+plt.hist(tupo_cleaned['tupo_sentiment'], color='grey', label='tupo')
+plt.title('Distribution of Sentiment Scores for tupo_cleaned)')
+plt.xlabel('Sentiment Score')
+plt.ylabel('Frequency')
+plt.legend(loc='upper right')
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.6.3A: Sentiment Distribution for "tupo_cleaned"](Photos/sendis_tupo.png)
+
+From the histogram, we can observe that the majority of comments have sentiment scores clustered around the center, indicating a neutral sentiment. The histogram displays a central peak slightly to the right of the zero mark, suggesting a slight overall positive sentiment among the comments. The presence of comments across the spectrum indicates a variety of sentiments in the dataset.
+
+The average sentiment score provided is approximately 0.057, which confirms the slight positive bias in sentiment. This value is close to zero, indicating that while the overall sentiment leans towards positive, it is still quite near to neutral on average.
+
+```{python}
+#| label: sentiment label counts for tupo_cleaned dataframe
+#| echo: false
+#| include: false
+#| eval: false
+
+tupo_cleaned['tupo_sentiment_label'] = tupo_cleaned['comment_cleaned'].apply(sentiment_label)
+
+# Count the number of data points in each cluster
+tupo_sentiment = tupo_cleaned['tupo_sentiment_label'].value_counts()
+
+# Define custom colors for the bar chart
+sentiment_custom_colors = {
+    'positive': 'green',
+    'negative': 'firebrick'
+}
+
+plt.figure(figsize=(12, 8))
+
+# Plot the distribution of sentiment
+tupo_sentiment.plot(kind='bar', color=[sentiment_custom_colors[label] for label in tupo_sentiment.index])
+plt.title('Distribution of People Sentiment (tupo_cleaned) about this topic')
+plt.xlabel('Sentiment')
+plt.ylabel('Count')
+plt.tick_params(axis='x', rotation=360)  # Rotate x-axis labels by 360 degrees
+
+# Add count and percentage labels on the bar plot
+for index, value in enumerate(tupo_sentiment.values):
+    plt.text(index, value, f'{value}\n({value/sum(tupo_sentiment.values)*100:.1f}%)', ha='center', va='bottom')
+
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 4.6.3B: Sentiment Label Counts for "tupo_cleaned"](Photos/sencount_tupo.png)
+
+The bar chart visualizes the sentiment distribution of comments from the "tupo_cleaned" dataset on a specific topic. It shows that a plurality of the comments (52.7.2%) have a negative sentiment and a substantial number have a positive sentiment (47.3%). This suggests that there is a diverse range of opinions and emotions expressed within the dataset. This distribution highlights the complexity of attitudes and viewpoints surrounding this topic, reflecting a mixture of criticism, dissatisfaction, as well as satisfaction among participants.
+
+# Results and Conclusion
+
+## Key Findings from Topic Modeling
+
+**Table 5.1:** *Key Findings from Topic Modeling of Each Dataset*
+
+| Dataset            | Main Themes                                                                                                                                        |
+|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| antivegan_cleaned | Discussions mainly revolve around negative perceptions of veganism, including how it is viewed unfavorably, its perceived impact on appearance, and general perceptions of veganism and people. |
+| cmv_cleaned        | Topics range from discussions on plant-based diets and vegan lifestyle choices to various aspects of vegan diets, including food choices, nutrition, and dietary supplements. Criticisms of veganism are also prevalent, focusing on negative perceptions and critiques. |
+| isppfb_cleaned     | Conversations cover topics related to babies and newborns in relation to vegan diets, discussions about veganism, dietary choices, and perceptions, and debates about dairy products, particularly cow's milk, and its implications for children. |
+| tfm_cleaned        | Discussions primarily center around deer meat consumption, alternative options, alternative meat products, and broader meat consumption discussions, possibly exploring alternative options. |
+| tfm2_cleaned       | Topics include discussions related to dietary choices, health considerations, and balanced diets, as well as discussions about veganism, animal welfare, ethical considerations of food choices, and personal experiences related to veganism. |
+| tupo_cleaned       | Conversations cover dietary habits focusing on veganism and plant-based diets, health implications of vegan diets, public perceptions, and discussions about nutrition, healthy eating habits, and dietary preferences. |
+
+These findings (Table 5.1) capture the main themes in each dataset through topic modeling and reveal a complex discourse landscape on veganism and meat consumption's health and nutrition aspects. While some discussions focus on nutritional benefits and ethical considerations, others express skepticism or criticism about the healthiness of vegan diets. These insights highlight the need to combat misinformation and encourage evidence-based discussions to support informed dietary decision-making.
+
+## Key Findings from Clustering Classification
+
+**Table 5.2:** *Relevant Points*
+
+| Dataset           | Cluster | Key Findings                                                                                                                                                                                                                                        |
+|-------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| antivegan_cleaned | 0 | Discussions focus on perceived physical changes, possibly deterioration, in individuals who adopted a vegan diet, indicating a belief that the diet may be linked to poor health outcomes.  |
+| antivegan_cleaned |  2 | Discussions associate veganism with eating disorders, expressing frustration and disbelief in veganism, and describing it as a mental disorder with negative physical effects. |
+| antivegan_cleaned |  4 | Discussions touch on veganism in relation to eating disorders, including changes in appearance and health recovery over time from anorexia.                               |
+| antivegan_cleaned | 5 | Comments portray a negative visual stereotype of vegans, suggesting a perception of veganism as unhealthy based on physical appearance.                       |                         
+| cmv_cleaned       | 5       | Exploration of the health aspects of veganism and concerns about nutritional adequacy and the use of supplements.                                  |
+| isppfb_cleaned  | 1 | Discussions center around breastfeeding with vegan milk, referencing peer-reviewed studies and discussions about its suitability, indicating a focus on the nutritional aspects of vegan milk for infant nutrition.                               |
+| isppfb_cleaned  | 2 | Individuals discuss the appearance of babies and children, often comparing them to older children or fictional characters like Vizzini, expressing concerns about thinness and other health-related issues.                                  |
+| isppfb_cleaned  | 3 | Discussions highlight about the health of vegan babies, expressing concerns about thinness and commenting on their appearance and well-being, suggesting a focus on the health outcomes and nutritional adequacy of vegan diets for infants.         |
+| isppfb_cleaned  |  4 | Discussions revolve around debates about whether newborns should consume certain foods based on their age, indicating concerns about the nutritional adequacy and appropriateness of diet for infants.             |
+| isppfb_cleaned  | 5 | Individuals discuss the duration or a suitable timeframe for which children should be allowed to follow certain diets, suggesting considerations about the timing and appropriateness of introducing specific dietary patterns for children. |
+| isppfb_cleaned  | 6 | References scientific articles and sources discussing the safety and suitability of vegan diets for children's growth and development, indicating an interest in scientific evidence regarding the health effects of vegan diets on children.      |
+| tfm_cleaned    |  5 | Discussions focus on the physical effects of meat consumption, particularly on stomach health, suggesting discussions about experiencing discomfort or nausea after consuming meat, possibly leading to considerations of vegetarianism.            |
+| tfm2_cleaned   |  4 | Discussions in this cluster seem to focus on the appearance of individuals in images, particularly related to aging and veganism, suggesting a potential concern or interest in the perceived physical effects of veganism. |
+| tupo_cleaned      | 0      |  There is a nuanced discussion about veganism. Some individuals discuss the perception of veganism as a healthy lifestyle choice, but some also express concerns about its potential drawbacks and challenges.  |
+| tupo_cleaned   | 1 | Discussion in this cluster centers on the nutritional aspects of vegan diets, particularly emphasizing the importance of various nutrients such as vitamins and minerals, and their presence in plant-based foods.    |
+| tupo_cleaned   | 2 | This cluster focuses on the concept of a plant-based diet, with some individuals expressing concerns about the overall healthiness of such diets, while others advocate for a balanced vegan diet as a genuinely healthy option. |
+| tupo_cleaned   |  4 | Individuals in this cluster revolve around concerns about vegan replacements for animal products and their major health concerns associated with veganism. They also mention famous vegan athletes and health concerns suggest a critical view of veganism's health implications. |
+| tupo_cleaned   | 5 | Topics in this cluster include the consumption of animal products, including meat, dairy, and unborn animals. There is a concern of specific food items such as the presence of nitrites in bacon.                     |
+
+As shown in Table 5.2, these summaries highlight a range of concerns and discussions regarding veganism, meat consumption, and their implications for health and nutrition. 
+
+These findings emphasize the need for accees to reliable information and potential policy interventions to combat misinformation/disinformation about veganism and meat consumption within the Reddit community, ensuring public health and nutrition considerations are accurately represented and addressed.
+
+## Key Findings from Sentiment Analysis
+
+### Average Sentiment Score
+
+We conducted sentiment analysis on the comments in each dataset. Initially, we computed ***the average sentiment score*** using *TextBlob* to determine the sentiment polarity of each comment (Table 5.1). Sentiment scores usually range from -1 to 1, with values near **1 indicating strong positive sentiment** and near **-1 indicating strong negative sentiment.** 
+
+**Table 5.3.1:** *Average Sentiment Score*
+
+| Dataset          | Average Sentiment Score |
+|------------------|-------------------------|
+| antivegan_cleaned | -0.095                  |
+| cmv_cleaned      | -0.044                  |
+| isppfb_cleaned   | 0.005                   |
+| tfm_cleaned      | 0.005                   |
+| tfm2_cleaned     | 0.049                   |
+| tupo_cleaned     | 0.058                   |
+
+### Sentiment Score Distribution
+
+Next, we visualized ***the sentiment distribution*** (Table 5.2) across datasets, reflecting different sentiment trends related to the subjects discussed.
+
+**Figure 5.3.2:** *Sentiment distribution for each dataset*
+```{python}
+#| label: overall distribution of sentiment scores
+#| echo: false
+#| include: false
+#| eval: false
+
+plt.figure(figsize=(12, 10))
+
+# Visualize the distribution of sentiment scores for antivegan_cleaned dataframe
+plt.subplot(3, 2, 1)
+plt.hist(antivegan_cleaned['antivegan_sentiment'], color='orange', label='antivegan')
+plt.title('Distribution of Sentiment Scores for antivegan_cleaned')
+plt.xlabel('Sentiment Score')
+plt.ylabel('Frequency')
+plt.legend(loc='upper right')
+
+# Visualize the distribution of sentiment scores for cmv_cleaned dataframe
+plt.subplot(3, 2, 2)
+plt.hist(cmv_cleaned['cmv_sentiment'], color='purple', label='cmv')
+plt.title('Distribution of Sentiment Scores for cmv_cleaned')
+plt.xlabel('Sentiment Score')
+plt.ylabel('Frequency')
+plt.legend(loc='upper right')
+
+# Visualize the distribution of sentiment scores for isppfb_cleaned dataframe
+plt.subplot(3, 2, 3)
+plt.hist(isppfb_cleaned['isppfb_sentiment'], color='crimson', label='isppfb')
+plt.title('Distribution of Sentiment Scores for isppfb_cleaned')
+plt.xlabel('Sentiment Score')
+plt.ylabel('Frequency')
+plt.legend(loc='upper right')
+
+# Visualize the distribution of sentiment scores for tfm_cleaned dataframe
+plt.subplot(3, 2, 4)
+plt.hist(tfm_cleaned['tfm_sentiment'], color='darkred', label='tfm')
+plt.title('Distribution of Sentiment Scores for tfm_cleaned')
+plt.xlabel('Sentiment Score')
+plt.ylabel('Frequency')
+plt.legend(loc='upper right')
+
+# Visualize the distribution of sentiment scores for tfm2_cleaned dataframe
+plt.subplot(3, 2, 5)
+plt.hist(tfm2_cleaned['tfm2_sentiment'], color='firebrick', label='tfm2')
+plt.title('Distribution of Sentiment Scores for tfm2_cleaned')
+plt.xlabel('Sentiment Score')
+plt.ylabel('Frequency')
+plt.legend(loc='upper right')
+
+# Visualize the distribution of sentiment scores for tupo_cleaned dataframe
+plt.subplot(3, 2, 6)
+plt.hist(tupo_cleaned['tupo_sentiment'], color='grey', label='tupo')
+plt.title('Distribution of Sentiment Scores for tupo_cleaned')
+plt.xlabel('Sentiment Score')
+plt.ylabel('Frequency')
+plt.legend(loc='upper right')
+
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 5.3.2: Sentiment Distribution for Each Dataset](Photos/all_sendis.png)
+
+As shown, ***“antivegan_cleaned”*** predominantly shows negative sentiments, suggesting a critical view towards veganism. The ***“cmv_cleaned”*** and ***“tfm_cleaned”*** datasets show mixed opinions with notable polarization, indicating strongly divided opinions that could impact public discourse. These findings are crucial for WHO to address misinformation and enhance health communication strategies. 
+
+
+### Sentiment Label Counts 
+
+Lastly, we labeled comments as positive or negative based on their sentiment polarity scores to assess the proportion of comments with varying sentiment orientations (Figure 5.3.3). 
+
+```{python}
+#| label: overall Sentiment Label Counts
+#| echo: false
+#| include: false
+#| eval: false
+
+# Create subplots with 3 rows and 2 columns
+fig, axes = plt.subplots(3, 2, figsize=(12, 15))
+
+# Flatten the axes array for easy indexing
+axes = axes.flatten()
+
+# List of sentiment data and titles
+sentiment_data = [antivegan_sentiment, cmv_sentiment, isppfb_sentiment, tfm_sentiment, tfm2_sentiment, tupo_sentiment]
+titles = ['antivegan_cleaned', 'cmv_cleaned', 'isppfb_cleaned', 'tfm_cleaned', 'tfm2_cleaned', 'tupo_cleaned']
+
+# Plot sentiment distribution for each dataset
+for ax, sentiment, title in zip(axes, sentiment_data, titles):
+    sentiment.plot(kind='bar', color=[sentiment_custom_colors[label] for label in sentiment.index], ax=ax)
+    ax.set_title(f'Distribution of People Sentiment ({title}) about this topic')
+    ax.set_xlabel('Sentiment')
+    ax.set_ylabel('Percentage')
+    ax.tick_params(axis='x', rotation=360)  # Rotate x-axis labels by 360 degrees
+
+    # Add percentage labels on the bar plot
+    total = sum(sentiment.values)
+    for index, value in enumerate(sentiment.values):
+        percentage = value / total * 100
+        ax.text(index, value, f'{percentage:.1f}%', ha='center', va='bottom')
+
+plt.tight_layout()
+plt.show()
+```
+
+![Figure 5.3.3: Sentiment Label Counts for Each Dataset](Photos/all_sencount.png)
+
+The sentiment analysis across various datasets highlights that most datasets show a majority of negative sentiments, with around 60-70%, suggesting critical or skeptical views toward dietary choices. However, “tupo_cleaned” seems almost balanced, with 53% negative and 47% positive sentiments, reflecting diverse opinions.
+
+These insights suggest varying degrees of sentiments within dietary discussions, reflecting public opinion dynamics. This underscores the necessity for implementing strategies to provide balanced and fact-based information on dietary health and choices effectively.
