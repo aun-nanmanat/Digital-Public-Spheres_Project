@@ -1,4 +1,52 @@
 # Policy Brief: The Spread of Misinformation and Disinformation on Reddit: The Case Study of Vegan and Meat Consumption
+## Project Overview
+### Objective: 
+To analyze how misinformation and disinformation about veganism and meat consumption spread on Reddit, and to propose actionable recommendations for the World Health Organization (WHO) to improve public understanding and promote accurate dietary information.
+
+### Key Techniques and Methodologies:
+- **Data Extraction:** Employed web scraping with Reddit's API to collect comments from relevant subreddits.
+
+- **Data Preprocessing:** Cleaned and processed text data to ensure reliability, and removed flagged comments.
+
+- **Topic Modeling:** Used Latent Dirichlet Allocation (LDA) to uncover hidden themes in discussions.
+
+- **KMeans Clustering:** Identified key themes and organized data into groups based on similarities.
+
+- **Sentiment Analysis:** Analyzed sentiment polarity using TextBlob, and visualized sentiment distribution.
+
+### Key Findings:
+- **Impact of Misinformation:** Inaccurate information on Reddit significantly influences public perceptions of dietary behaviors.
+
+- **Demand for Reliable Information:** Users showed a clear demand for scientifically evidence-based information about dietary topics.
+
+- **Sentiment Trends:** Predominantly negative sentiments were observed in discussions about veganism, with critical views towards vegan diets.
+
+### Model Performance:
+- **Topic Modeling:** Revealed complex discourse on health and nutrition aspects of veganism and meat consumption.
+
+- **KMeans Clustering:** Highlighted a range of concerns and discussions, emphasizing the need for reliable information.
+
+- **Sentiment Analysis:** Demonstrated varying degrees of sentiment, with most datasets showing a majority of negative sentiments.
+
+### Policy Recommendations for WHO:
+- **Engagement on Social Media:** Create an official Reddit profile, and conduct Ask Me Anything (AMA) sessions.
+
+- **Monitoring and Education:** Increase monitoring of misinformation trends, and develop targeted educational resources.
+
+- **Collaboration with Organizations:** Work with entities like NewsGuard to combat disinformation.
+
+### Impact:
+- **Enhanced Public Health Communication:** Improved quality of public health discourse on dietary choices.
+
+- **Informed Eating Choices:** Promoted accurate dietary information, enhancing global health outcomes.
+
+### Challenges and Considerations:
+- **Technical Expertise and Resources:** Addressing challenges related to technical expertise, resource allocation, and potential resistance from online communities.
+Conclusion:
+
+- **Importance of Trustworthy Information:** Highlighted the critical need for reliable information in shaping public discourse.
+
+- **Proactive Interventions:** Proposed strategies to counteract misinformation and foster informed healthy public dialogue.
 
 ## Executive Summary
 The increasing number of misinformation and disinformation across various social media platforms has become one of the big issues that we must be aware of and pay attention to. Our policy brief addresses the prevalent issue of inaccurate information affecting public perceptions of diet and health on a digital platform. Therefore, our primary goal is to provide actionable insights and evidence-based recommendations for a policy framework to promote accurate information and improve public understanding of dietary choices in the online community. With a focus on Reddit, this study aims to offer several data-driven insights and apply various analytical techniques including topic modeling, KMeans clustering, and sentiment analysis on text to systematically analyze how misinformation and disinformation about veganism and meat consumption are spread and their impact on public audience surrounding health and nutrition decisions.
